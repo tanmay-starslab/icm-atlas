@@ -54,7 +54,7 @@ export {VOL_KEYS, decodeU8, gunzipIfNeeded, speciesList, velocityList,
    double-clicking the stage (densest sample of the current field along the ray), to the selected sightline (closest
    approach to the galaxy) or to typed kpc; the stage chip / key C brings it back. Kept in the URL as ?pv=x,y,z (the
    page's hash writes keep the search part). Pure helpers below run in node (tests/js/pivot_unit.mjs). ---- */
-export const PIVOT = {eps: 0.5, max: 4000};               // off-centre beyond eps kpc; typed / URL values clamped to ±max
+export const PIVOT = {eps: 0.5, max: 400};               // off-centre beyond eps kpc; typed / URL values clamped to ±max
 const r1 = x => { const v = Math.round(x * 10) / 10; return Object.is(v, -0) ? 0 : v; };
 export const offCentre = p => !!p && Math.hypot(p[0], p[1], p[2]) > PIVOT.eps;
 /* "x,y,z" (kpc) -> [x, y, z] clamped to ±PIVOT.max, or null (absent, malformed, or at the centre) */
@@ -72,7 +72,7 @@ export function parseCam(s) {
   const t = String(s ?? "").split(",").map(x => x.trim());
   if (t.length !== 6 || t.some(x => x === "")) return null;
   const v = t.map(Number); if (!v.every(Number.isFinite)) return null;
-  const p = v.slice(0, 3).map(x => Math.max(-56000, Math.min(56000, x))), u = v.slice(3, 6);
+  const p = v.slice(0, 3).map(x => Math.max(-5600, Math.min(5600, x))), u = v.slice(3, 6);
   const uLen = Math.hypot(u[0], u[1], u[2]); if (uLen < 1e-6) return null;
   return {p: p.map(r2), u: u.map(x => r2(x / uLen))};
 }
@@ -513,6 +513,7 @@ export async function mountThumb(host, app, opts = {}) {
 }
 
 async function create(app, opts = {}) {
+  initFastVizWasm().catch(() => {});
   if (!document.getElementById("v3d-css")) { const st = document.createElement("style"); st.id = "v3d-css"; st.textContent = CSS; document.head.appendChild(st); }
   const cfg = app.config || {}, G = cfg.galaxy || {}, F0 = cfg.frame || {};
   const viz = opts.viz === undefined ? (cfg.viz ?? null) : opts.viz;
@@ -696,9 +697,9 @@ async function create(app, opts = {}) {
   let movingPR = Math.min(PR * movGov.rung.scale, exactPR), movingSpv = movGov.rung.spv, movingShade = movGov.rung.shade;
   const EXACT_MS = 100;
   renderer.setPixelRatio(PR);
-  const scene = new T.Scene(), volScene = new T.Scene(), camera = new T.PerspectiveCamera(FOV, 1, manifest?.levels?.L3 ? 0.05 : 0.5, 200000);
+  const scene = new T.Scene(), volScene = new T.Scene(), camera = new T.PerspectiveCamera(FOV, 1, manifest?.levels?.L3 ? 0.05 : 0.5, 20000);
   const controls = new OrbitControls(camera, canvas); controls.enableDamping = false;
-  controls.minDistance = manifest?.levels?.L4 ? 0.4 : manifest?.levels?.L3 ? 1.5 : 15; controls.maxDistance = 56000;
+  controls.minDistance = manifest?.levels?.L4 ? 0.4 : manifest?.levels?.L3 ? 1.5 : 15; controls.maxDistance = 5600;
   controls.zoomSpeed = 1.2; controls.keys = {};
 
   /* ---- the cube mesh (local = disk frame) ---- */
@@ -718,21 +719,39 @@ async function create(app, opts = {}) {
   RM.uniforms.uDustScat = {value: DUST_LAWS.skirt.scat};
   RM.material.fragmentShader = RM.material.fragmentShader
     .replace("in vec3 vPos;", "uniform float uDust, uDustScat; uniform vec3 uDustVec; in vec3 vPos;")
+    .replace(`vec3 gradAt(vec3 p, int l) {
+  vec3 t = p / (2.0 * hl(l)) + 0.5; float e = 1.0 / uN, s = 0.5 * (uGasRange.y - uGasRange.x) / 254.0;
+  s *= hl(1) / hl(l);
+  return s * vec3(qAt(t + vec3(e, 0.0, 0.0), l) - qAt(t - vec3(e, 0.0, 0.0), l), qAt(t + vec3(0.0, e, 0.0), l) - qAt(t - vec3(0.0, e, 0.0), l),
+                  qAt(t + vec3(0.0, 0.0, e), l) - qAt(t - vec3(0.0, 0.0, e), l)); }`,
+      `vec3 gradAt(vec3 p, int l) {
+  if (l == 0 && length(p) + 2.5 * hl(0) / uN > uMask0) return vec3(0.0);
+  vec3 t = p / (2.0 * hl(l)) + 0.5; float e = 1.0 / uN, s = 0.5 * (uGasRange.y - uGasRange.x) / 254.0;
+  s *= 100.0 / hl(l);
+  float qxp = qAt(t + vec3(e, 0.0, 0.0), l), qxm = qAt(t - vec3(e, 0.0, 0.0), l);
+  float qyp = qAt(t + vec3(0.0, e, 0.0), l), qym = qAt(t - vec3(0.0, e, 0.0), l);
+  float qzp = qAt(t + vec3(0.0, 0.0, e), l), qzm = qAt(t - vec3(0.0, 0.0, e), l);
+  if (min(min(min(qxp, qxm), min(qyp, qym)), min(qzp, qzm)) < 1.0) return vec3(0.0);
+  return s * vec3(qxp - qxm, qyp - qym, qzp - qzm); }`)
+    .replace("float fp = uPxAng * max(length(pm - o), 1.0), mg = 1.0, mw = 1.0, ms = 1.0;",
+      "float fp = uPxAng * max(length(o), 1.0), mg = 1.0, mw = 1.0, ms = 1.0;")
     .replace("vec3 starAt(vec3 p, int l) {", `float decDust(float q) { return q < 0.5 || q >= 254.5 ? 0.0 : exp2(LOG2_10 * (-4.5 + (q - 1.0) * 6.0 / 253.0)); }
 float exactDust(sampler3D s, vec3 p, float h) {
-  vec3 g = (p / (2.0 * h) + 0.5) * uN - 0.5, i0 = floor(g), f = g - i0; ivec3 b = ivec3(i0), hi = ivec3(int(uN) - 1); float v = 0.0;
+  vec3 g = (p / (2.0 * h) + 0.5) * uN - 0.5, i0 = floor(g), f = g - i0; ivec3 b = ivec3(i0), hi = ivec3(int(uN) - 1); float v = 0.0; bool hasSentinel = false;
   for (int c = 0; c < 8; c++) { ivec3 o = ivec3(c & 1, (c >> 1) & 1, (c >> 2) & 1); vec3 w = mix(1.0 - f, f, vec3(o));
-    v += w.x * w.y * w.z * decDust(floor(texelFetch(s, clamp(b + o, ivec3(0), hi), 0).a * 255.0 + 0.5)); }
-  return v; }
+    float q = floor(texelFetch(s, clamp(b + o, ivec3(0), hi), 0).a * 255.0 + 0.5);
+    if (q >= 254.5) hasSentinel = true;
+    v += w.x * w.y * w.z * decDust(q); }
+  return hasSentinel ? -1.0 : v; }
 float starDustAt(vec3 p, int l) {
   if (l == 0 && length(p) > uMask0) return 0.0;
   float h = hl(l);
   vec3 u = p / (2.0 * h) + 0.5;
   float d = 0.5 / uN;
   if (any(lessThan(u, vec3(d))) || any(greaterThan(u, vec3(1.0 - d)))) return 0.0;
+  if (uExact == 1) return l == 0 ? exactDust(uStar0, p, h) : l == 1 ? exactDust(uStar1, p, h) : exactDust(uStar2, p, h);
   float sa = (l == 0 ? texture(uStar0, u).a : l == 1 ? texture(uStar1, u).a : texture(uStar2, u).a);
   if (sa * 255.0 >= 254.5) return -1.0;
-  if (uExact == 1) return l == 0 ? exactDust(uStar0, p, h) : l == 1 ? exactDust(uStar1, p, h) : exactDust(uStar2, p, h);
   return decDust(sa * 255.0); }
 float dustDiskKv(vec3 p, vec3 sv, float gv, float kvRaw) {
   if (kvRaw >= 0.0) return kvRaw;
@@ -760,26 +779,20 @@ vec3 starAt(vec3 p, int l) {`)
             vec3 att = exp(-tau);
             float cosTh = dot(normalize(p + vec3(0.0, 0.0, 1e-4)), d);
             float hg = uDustScat * 0.22 * (1.0 - 0.30) / pow(max(1.0 + 0.30 - 1.10 * cosTh, 0.15), 1.5);
-            vec3 src = sv * exp(-0.75 * tau) * (1.0 + min(hg, 0.35) * exp(-1.2 * tau) * vec3(0.75, 0.92, 1.18));
+            vec3 src = sv * (1.0 + min(hg, 0.35) * exp(-0.8 * tau) * vec3(0.75, 0.92, 1.18));
             sumS += transS * src * hw * (1.0 - att) / max(tau, vec3(1e-5));
             transS *= att;
           } else { sumS += transS * sv * hw; }
         } else { sumS += sv * hw; } }`)
     .replace("vec3 star = starOn ? uStarMix * lupton(sumS) : vec3(0.0);",
       `vec3 star0 = starOn ? uStarMix * lupton(sumS0) : vec3(0.0);
-  vec3 starPre = starOn ? uStarMix * lupton(sumS) : vec3(0.0);
-  vec3 tBand = clamp(sumS / max(sumS0, vec3(1e-5)), 0.0, 1.0);
-  float tBol = clamp(dot(sumS, vec3(0.30, 0.45, 0.25)) / max(dot(sumS0, vec3(0.30, 0.45, 0.25)), 1e-5), 0.0, 1.0);
-  vec3 redd = clamp(tBand / max(tBol, 1e-4), 0.35, 1.35);
-  float coreGrey = clamp(tBol / 0.35, 0.0, 1.0);
-  vec3 reddEff = 1.0 + (redd - 1.0) * (0.30 + 0.70 * coreGrey);
-  vec3 star = (starOn && uDust > 0.0 && sumS0 != vec3(0.0)) ? clamp(0.35 * starPre + 0.65 * (star0 * (0.10 + 0.90 * pow(tBol, 0.62)) * reddEff), 0.0, 1.0) : starPre;`)
+  vec3 star = starOn ? uStarMix * lupton(sumS) : vec3(0.0);`)
     .replace("float sm = max(star.r, max(star.g, star.b)), occ = uStarOcc * smoothstep(uOccRange.x, uOccRange.y, sm);",
       "float sm = max(star.r, max(star.g, star.b)), sm0 = max(star0.r, max(star0.g, star0.b)), occ = uStarOcc * smoothstep(uOccRange.x, uOccRange.y, max(sm, sm0)), dustT = (starOn && uDust > 0.0 && sumS0 != vec3(0.0)) ? clamp((sumS.r + sumS.g + sumS.b) / max(sumS0.r + sumS0.g + sumS0.b, 1e-5), 0.0, 1.0) : 1.0;")
     .replace("vec3 g = mix(uBg, gas, gm * (starOn ? uGasW : 1.0) * (1.0 - occ));",
       "vec3 g = mix(uBg, gas, gm * (starOn ? uGasW * dustT : 1.0) * (1.0 - occ));");
-  const half = lv => manifest?.levels?.[lv]?.half_kpc ?? {L0: 4000, L1: 1000, L2: 250, L3: 62.5, L4: 15.0, S0: 4000, S1: 1000, S2: 250, S3: 62.5, S4: 15.0}[lv];
-  U.uHalf.value.set(half("L0"), half("L1"), half("L2")); U.uMask0.value = manifest?.levels?.L0?.r_mask_kpc ?? half("L0");
+  const half = lv => manifest?.levels?.[lv]?.half_kpc ?? {L0: 400, L1: 100, L2: 25, L3: 6.25, L4: 1.5, S0: 400, S1: 100, S2: 25, S3: 6.25, S4: 1.5}[lv];
+  U.uHalf.value.set(half("L0"), half("L1"), half("L2")); U.uMask0.value = manifest?.levels?.L0?.r_mask_kpc ?? 400;
   U.uBg.value.set(5 / 255, 7 / 255, 11 / 255);
   const volMesh = new T.Mesh(new T.BoxGeometry(2 * half("L0"), 2 * half("L0"), 2 * half("L0")), RM.material);
   volMesh.matrixAutoUpdate = false; volMesh.matrix.makeBasis(Xv, Yv, Lv); volMesh.updateMatrixWorld(true); volMesh.renderOrder = 0; volMesh.frustumCulled = false;
@@ -943,7 +956,7 @@ vec3 starAt(vec3 p, int l) {`)
      T / Z), L1, the star level, then L2 / S2 / S0 only when the view resolves them; other fields only once selected */
   function needed(k = wanted || species) {
     const plan = viewPlan({ratio: ratios(k), hVisKpc: hVis(), mobile, stars: layer.stars && !!manifest.stars,
-      hasL3: !!manifest?.levels?.L3, hasL4: !!manifest?.levels?.L4, l0HalfKpc: half("L0")}), keys = [];
+      hasL3: !!manifest?.levels?.L3, hasL4: !!manifest?.levels?.L4}), keys = [];
     for (const [kind, L] of plan.order) {
       if (kind === "gas") { if (!k) continue;
         /* vel3d: a velocity view needs the packed velocity cube of the level ("vel||L") and its weight field */
@@ -1076,8 +1089,8 @@ vec3 starAt(vec3 p, int l) {`)
     if (!manifest || !species) return 0;
     const hv = hVis(), vel = isVel(species);
     const hasG = L => TEX.has(vel ? keyOf("vel", "", L) : keyOf("gas", species, L)) && (!vel || TEX.has(keyOf("gas", boundW, L)));
-    if (GAS_L.includes("L4") && hv <= 0.88 * half("L3") && hasG("L4") && hasG("L3")) return 2;
-    if (GAS_L.includes("L3") && hv <= 0.88 * half("L2") && hasG("L3")) return 1;
+    if (GAS_L.includes("L4") && hv <= 5.5 && hasG("L4") && hasG("L3")) return 2;
+    if (GAS_L.includes("L3") && hv <= 22 && hasG("L3")) return 1;
     return 0;
   }
   const isBound = key => { const [kind, k, L] = key.split("|"), t = TEX.get(key)?.tex; if (!t) return false;
@@ -1526,7 +1539,8 @@ vec3 starAt(vec3 p, int l) {`)
     selUniforms();
     renderer.getDrawingBufferSize(accSize); U.uPxAng.value = 2 * Math.tan(camera.fov * Math.PI / 360) / Math.max(accSize.y, 1);
     U.uLodC.value.set(species ? lodField(species) : LOD_C.gas, LOD_C.stars);
-    const dT = camera.position.distanceTo(controls.target); U.uNear.value.set(NEAR[0] * dT, NEAR[1] * dT);
+    const dT = camera.position.distanceTo(controls.target), nearD = U.uMode.value === 0 ? 0 : Math.min(dT * 0.12, 12.0);
+    U.uNear.value.set(0.35 * nearD, nearD);
     if (exact) {
       if (accRT.width !== accSize.x || accRT.height !== accSize.y) { accRT.setSize(accSize.x, accSize.y); accK = 0; }
       const k = accK, [sx, sy] = SUB[k % ACC_N]; U.uSub.value.set(2 * sx / accSize.x, 2 * sy / accSize.y); U.uAccW.value = 1 / (k + 1);
@@ -1668,7 +1682,10 @@ vec3 starAt(vec3 p, int l) {`)
 
   /* ---- presets ---- */
   let anim = 0;
-  const DEF_D = Math.round(520 * Math.max(1, half("L0") / 400));            // scales with L0 half_kpc so ±L1 (1000 kpc for clusters) fills the initial frame
+  const DEF_D = 520;            // tune2: was 420 at 40°; at 22° the field spans about ±100 kpc (the L1 box) vertically
+  /* tune4: the default camera keeps 60° from the disk normal but sits at azimuth 60° from xhat (was 0°): the page's default
+     sightline (edge_b100_a090, along xhat 100 kpc above the disk) then projects about 83 kpc from the centre instead of
+     straight through the disk, and the disk is seen from the same inclination */
   const DEF_AZ = 60 * Math.PI / 180;
   const DEF_DIR = Lv.clone().multiplyScalar(0.5).addScaledVector(Xv, 0.866 * Math.cos(DEF_AZ)).addScaledVector(Yv, 0.866 * Math.sin(DEF_AZ)).normalize();
   const upFor = dir => { const u = Lv.clone().addScaledVector(dir, -Lv.dot(dir)); return u.length() > 1e-6 ? u.normalize() : Yv.clone(); };
@@ -1682,7 +1699,7 @@ vec3 starAt(vec3 p, int l) {`)
   }
   function setPreset(p) {
     /* ux4 pivot: face-on and edge-on turn about the current orbit centre; Reset also brings it back to the galaxy */
-    const o = new T.Vector3(), c0 = controls.target.clone(), D = Math.min(47000, Math.max(110, camera.position.distanceTo(controls.target))); clearTransient(); viewer.presetError = null;
+    const o = new T.Vector3(), c0 = controls.target.clone(), D = Math.min(4700, Math.max(110, camera.position.distanceTo(controls.target))); clearTransient(); viewer.presetError = null;
     if (p === "face-on") goTo(c0.clone().addScaledVector(Lv, D), c0, Yv.clone());
     else if (p === "edge-on") goTo(c0.clone().addScaledVector(Xv, D), c0, Lv.clone());
     else if (p === "sightline") { const e = selId && app.entry(selId);
