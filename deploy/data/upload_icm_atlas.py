@@ -202,21 +202,21 @@ def build_cluster_ops(cid: str, cdir: Path, tier: str = "webp") -> tuple[list[tu
 
 
 def upload_to_hf_repo(api: HfApi, repo: str, clusters: list[tuple[str, list[tuple[str, object, int]]]],
-                      readme_bytes: bytes, batch_clusters: int = 4) -> None:
+                      readme_bytes: bytes, batch_clusters: int = 8) -> None:
     t0 = time.time()
     V._call(api.create_repo, repo, repo_type="dataset", private=False, exist_ok=True)
-    remote = V.remote_index(api, repo)
+    top_entries = list(V._call(api.list_repo_tree, repo, repo_type="dataset", recursive=False))
+    existing_clusters = {x.path for x in top_entries if x.__class__.__name__ == "RepoFolder"}
 
     todo_clusters = []
     skipped_files = 0
     for cid, items in clusters:
+        if cid in existing_clusters:
+            skipped_files += len(items)
+            continue
         c_ops = []
         c_bytes = 0
         for rel, src, sz in items:
-            r = remote.get(rel)
-            if r is not None and r.get("size") == sz:
-                skipped_files += 1
-                continue
             c_ops.append(CommitOperationAdd(path_in_repo=rel, path_or_fileobj=src if isinstance(src, bytes) else str(src)))
             c_bytes += sz
         if c_ops:
