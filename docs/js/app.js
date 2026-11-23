@@ -16,7 +16,7 @@ import {initLiquidTabs, initLiquidSeg, initLiquidButtons} from "./liquidtabs.js"
 import {initLiquidBg} from "./liquidbg.js";   /* liquid metal shader background (3D tab; Spectra only with SPECTRA_BG) */
 import {uiSound, sfx} from "./uisound.js";   /* optional UI sound effects (off by default; top-bar switch #sfx) */
 import {galaxyIndex, resolveGalaxy, parseGalaxy, galaxyHashPart, packFor, createGalaxyPicker, galaxyTip, unlistedGalaxy,
-  nearestSightline, defaultSightline, srcOf, galaxySummary, normId, isFire, inferSim, inferSimKey, galNoun, SIM_META, SIM_ORDER} from "./galaxies.js";
+  nearestSightline, defaultSightline, srcOf, galaxySummary, normId, isFire, inferSim, inferSimKey, galNoun, shortClusterId, SIM_META, SIM_ORDER} from "./galaxies.js";
 import {tier, tierReady} from "./tier.js";   /* perf R5: device tier (html[data-tier]) and its one-off WebGL probe */
 const {degradeV, decodeTNGS, seedFor, cacheKey, fitPanel, FIT_VERSION, FIT_PARAMS} = FITM;
 
@@ -423,13 +423,42 @@ function buildIons() {
   $("#ion-chips").innerHTML = S.ions.map(k => `<button type="button" class="chip" data-ion="${k}" style="--ic:${ionColor(k)}" data-tip="${esc(S.ions.length < 2 ? "The last line stays; add another to remove it" : `${ION_TIPS[k] || ION[k].label}; × removes, shift-click solos`)}" aria-label="Remove ${esc(ION[k].label)}"${S.ions.length < 2 ? " disabled" : ""}><span class="sw"></span>${esc(ION[k].label)}<span class="x" aria-hidden="true">×</span></button>`).join("");
   $("#ion-open .n").textContent = S.ions.length;
 }
+const HOT_ICM_IONS = ["OVII", "NeVIII", "OVI", "NV", "HI"];
+const COOL_CORE_IONS = ["HI", "CIII", "SiIII", "CII", "MgII"];
+(function ensureIcmIonPresetButtons() {
+  const bar = $("#ion-pop .pbtns");
+  if (!bar) return;
+  if (!$("#ion-hot-icm")) {
+    const bHot = document.createElement("button");
+    bHot.id = "ion-hot-icm";
+    bHot.type = "button";
+    bHot.dataset.testid = "ion-hot-icm";
+    bHot.dataset.tip = "X-ray, EUV & hot coronal ICM lines (O VII 21.6 Å, Ne VIII 770 Å, O VI 1032 Å, N V 1239 Å, H I 1216 Å)";
+    bHot.textContent = "X-ray / Hot ICM";
+    bar.appendChild(bHot);
+  }
+  if (!$("#ion-cool-core")) {
+    const bCool = document.createElement("button");
+    bCool.id = "ion-cool-core";
+    bCool.type = "button";
+    bCool.dataset.testid = "ion-cool-core";
+    bCool.dataset.tip = "BCG cool-core & ram-pressure stripped jellyfish tail lines (H I 1216 Å, C III 977 Å, Si III 1206 Å, C II 1335 Å, Mg II 2796 Å)";
+    bCool.textContent = "Cool-Core / Tails";
+    bar.appendChild(bCool);
+  }
+})();
 $("#ion-list").addEventListener("change", ev => { const c = ev.target.closest("input[data-ion]"); if (!c) return;
-  const on = $$("#ion-list input:checked").map(x => x.dataset.ion); if (!on.length) { c.checked = true; return; } sfx(c.checked ? "select" : "deselect"); setIons(on); });
+  const checked = new Set($$("#ion-list input:checked").map(x => x.dataset.ion));
+  if (!checked.size) { c.checked = true; return; }
+  const kept = S.ions.filter(k => checked.has(k)), added = reg.KEYS.filter(k => checked.has(k) && !kept.includes(k));
+  sfx(c.checked ? "select" : "deselect"); setIons(kept.concat(added)); });
 $("#ion-chips").addEventListener("click", ev => { const b = ev.target.closest("button[data-ion]"); if (b && S.ions.length > 1) { sfx("deselect"); setIons(S.ions.filter(k => k !== b.dataset.ion)); } });
 $("#ion-all").addEventListener("click", () => setIons(reg.KEYS));
 $("#ion-none").addEventListener("click", () => setIons([S.ions[0]]));
 $("#ion-default").addEventListener("click", () => setIons(reg.DEF.ions));
-function setIons(l) { S.ions = reg.KEYS.filter(k => l.includes(k)); if (!S.ions.length) S.ions = reg.DEF.ions.slice();
+$("#ion-hot-icm")?.addEventListener("click", () => { sfx("select"); setIons(HOT_ICM_IONS); });
+$("#ion-cool-core")?.addEventListener("click", () => { sfx("select"); setIons(COOL_CORE_IONS); });
+function setIons(l) { S.ions = [...new Set((l || []).filter(k => reg.ION[k]))]; if (!S.ions.length) S.ions = reg.DEF.ions.slice();
   clampView(S, vmax()); buildIons(); inst.build(); draw(); writeHashSoon(); instEmit(); }
 
 /* ---------------- popovers ---------------- */
@@ -1019,9 +1048,9 @@ for (const el of [$("#tab-3d"), $("#v3d-mini")]) el.addEventListener("pointerent
 let FORCE3D = false;
 function poster3d() {
   const root = $("#v3d-root"); $("#v3d-wait").hidden = true; if (root.querySelector(".v3d-poster")) return;
-  root.innerHTML = `<div class="v3d-poster" data-testid="v3d-poster"><img src="img/og/explorer.jpg" alt="A TNG50 galaxy's gas in purple and orange, crossed by a quasar sightline" width="1200" height="630" decoding="async">
-    <p class="msg">This device looks slow for the live 3D view, so it shows a still.</p><button type="button" class="pbtn" data-testid="v3d-anyway">Render 3D anyway</button></div>`;
-  root.querySelector("button").addEventListener("click", () => { FORCE3D = true; root.replaceChildren(); $("#v3d-wait").hidden = false; open3d().catch(() => {}); });
+  root.innerHTML = `<div class="v3d-poster" data-testid="v3d-poster"><img src="img/og/explorer.jpg" alt="A 3D galaxy cluster intracluster medium volume crossed by quasar absorption sightlines" width="1200" height="630" decoding="async">
+    <p class="msg">This device looks slow for the live 3D view, so it shows a still of the ICM &amp; Galaxy Cluster Atlas.</p><button type="button" class="pbtn" data-testid="v3d-anyway">Render 3D anyway</button></div>`;
+  root.querySelector("button").addEventListener("click", () => { FORCE3D = true; root.replaceChildren(); $("#v3d-wait").hidden = false; open3d().then(autoSheet, () => {}); });
 }
 function open3d() {
   if (V3P) return V3P;
@@ -1062,29 +1091,65 @@ $("#v3d-mini").addEventListener("pointerenter", () => { if (thumbOk() && tier() 
 /* ---------------- galaxy sample: picker and switching (js/galaxies.js) ---------------- */
 const GPICK = GIX ? createGalaxyPicker({pop: $("#gxy-pop"), cur: $("#gxy-cur"), search: $("#gxy-search"), filter: $("#gxy-filter"), head: $("#gxy-head"),
   list: $("#gxy-list"), count: $("#gxy-count")}, {index: GIX, current: () => GAL, onPick: id => { closePops(); sfx("select"); switchGalaxy(id, {source: "picker"}); }}) : null;
-if (GPICK && $("#gxy-sim")) initLiquidSeg($("#gxy-sim"));
-const LAST_BY_SIM = {tngcluster: GIX?.default ?? "tngc_h14258311", simba100: "simba100_c01_h0", tng300: "tng300_h0", tng50: 488530, fire2: "m12i", simba: "simba25_g0", agora: "agora_arepo_mw", camels: "camels_tng_mw25"};
+const LAST_BY_SIM = {tngcluster: GIX?.default ?? "tngc_h14258311", simba100: "simba100_c01_h0", tng300: "tng300_sub1338052", tng50: 488530, fire2: "m12i", simba: "simba25_g0", agora: "agora_arepo_mw", camels: "camels_tng_mw25"};
 const activeSim = () => String((GIX && GIX.byId.get(GAL)?.sim) || CFG.galaxy?.sim || inferSim({id: GAL}));
 const activeSimKey = () => (GIX && GIX.byId.get(GAL)?.simKey) || inferSimKey({id: GAL, sim: CFG.galaxy?.sim});
 const activeIsFire = () => activeSimKey() === "fire2";
 const activeNoun = (cap = false) => { const n = galNoun((GIX && GIX.byId.get(GAL)) || {id: GAL, sim: CFG.galaxy?.sim}); return cap ? n : n.toLowerCase(); };
-let topSimEl = null;
+let topSimEl = null, simPopEl = null;
 if (GIX && new Set(GIX.list.map(e => e.simKey)).size > 1 && $("#grp-gal") && !$("#top-sim")) {
-  const presentSims = SIM_ORDER.filter(sk => GIX.list.some(e => e.simKey === sk));
-  topSimEl = document.createElement("div");
+  const simCounts = {};
+  for (const e of GIX.list) simCounts[e.simKey] = (simCounts[e.simKey] || 0) + 1;
+  const presentSims = SIM_ORDER.filter(sk => simCounts[sk] > 0);
+  const SIM_SUB = {
+    tngcluster: "AREPO MHD 1 Gpc³ zoom-ins, z = 0",
+    simba100: "GIZMO MFM 100 h⁻¹ Mpc clusters",
+    tng300: "AREPO MHD 302.6 Mpc clusters",
+    tng50: "AREPO moving mesh, z = 0",
+    fire2: "GIZMO MFM zoom-in halos",
+    simba: "GIZMO MFM 25 & 100 Mpc",
+    agora: "AREPO CosmoRun Milky Way",
+    camels: "TNG, SIMBA, Astrid & EAGLE"
+  };
+  const defSk = activeSimKey();
+  const defMeta = SIM_META[defSk] || SIM_META.tngcluster;
+  topSimEl = document.createElement("button");
+  topSimEl.type = "button";
   topSimEl.id = "top-sim";
-  topSimEl.className = "seg";
-  topSimEl.setAttribute("role", "radiogroup");
+  topSimEl.className = "pbtn lq-metal";
+  topSimEl.setAttribute("aria-haspopup", "dialog");
+  topSimEl.setAttribute("aria-controls", "sim-pop");
+  topSimEl.setAttribute("aria-expanded", "false");
   topSimEl.setAttribute("aria-label", "Simulation");
-  topSimEl.innerHTML = presentSims.map((sk, i) => {
-    const m = SIM_META[sk] || {label: sk.toUpperCase(), topTip: `Switch to ${sk} galaxies`};
-    return `<label><input type="radio" name="top-sim" value="${sk}" data-tip="${esc(m.topTip)}"${i === 0 ? " checked" : ""}><span>${esc(m.label)}</span></label>`;
-  }).join("");
+  topSimEl.dataset.tip = "Switch simulation suite";
+  topSimEl.innerHTML = `<span class="slab">${esc(defMeta.label)}</span><small class="scnt">${simCounts[defSk] || ""}</small><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/></svg>`;
   const grpGal = $("#grp-gal"), gxyOpen = $("#gxy-open");
   if (gxyOpen) grpGal.insertBefore(topSimEl, gxyOpen); else grpGal.prepend(topSimEl);
-  initLiquidSeg(topSimEl);
-  topSimEl.addEventListener("change", ev => {
-    const sk = ev.target?.value;
+
+  simPopEl = document.createElement("div");
+  simPopEl.className = "pop";
+  simPopEl.id = "sim-pop";
+  simPopEl.setAttribute("role", "dialog");
+  simPopEl.setAttribute("aria-label", "Simulation suite");
+  simPopEl.hidden = true;
+  simPopEl.innerHTML = `<div class="sim-hd"><span>Simulation suite</span><b>${GIX.list.length} clusters</b></div><div class="sim-grid" role="listbox" aria-label="Simulations">${presentSims.map(sk => {
+    const m = SIM_META[sk] || {label: sk.toUpperCase(), topTip: `Switch to ${sk} clusters`};
+    const sub = SIM_SUB[sk] || "Cosmological simulation";
+    return `<button type="button" class="sim-opt" role="option" data-sim="${sk}" data-tip="${esc(m.topTip)}" aria-selected="false"><span class="so-top"><span class="so-name">${esc(m.label)}</span><b class="so-cnt">${simCounts[sk]}</b></span><span class="so-sub">${esc(sub)}</span></button>`;
+  }).join("")}</div>`;
+  document.body.appendChild(simPopEl);
+
+  topSimEl.addEventListener("click", ev => {
+    ev.stopPropagation();
+    if (simPopEl.hidden) { sfx("open"); openPop(topSimEl, simPopEl); }
+    else { sfx("close"); closePops(); }
+  });
+  simPopEl.addEventListener("click", ev => {
+    const b = ev.target.closest(".sim-opt[data-sim]");
+    if (!b) return;
+    const sk = b.dataset.sim;
+    closePops();
+    topSimEl?.focus({preventScroll: true});
     if (!sk || sk === activeSimKey()) return;
     sfx("select");
     if (GPICK) GPICK.setSim(sk);
@@ -1094,22 +1159,35 @@ if (GIX && new Set(GIX.list.map(e => e.simKey)).size > 1 && $("#grp-gal") && !$(
   });
 }
 function galaxyUI() {
-  const sk = activeSimKey(), meta = SIM_META[sk] || SIM_META.tng50, ttl = $("#title");
+  const sk = activeSimKey(), meta = SIM_META[sk] || SIM_META.tngcluster, ttl = $("#title");
   if (GAL != null) LAST_BY_SIM[sk] = GAL;
   if (ttl) ttl.textContent = meta.title;
   const cf = $("#credits-foot span");
   if (cf) cf.textContent = meta.credit;
-  if (topSimEl) for (const r of topSimEl.querySelectorAll('input[name="top-sim"]')) r.checked = r.value === sk;
+  if (topSimEl) {
+    const sl = topSimEl.querySelector(".slab"), sc = topSimEl.querySelector(".scnt");
+    if (sl) sl.textContent = meta.label;
+    if (sc && GIX) sc.textContent = String(GIX.list.filter(e => e.simKey === sk).length);
+    topSimEl.dataset.sim = sk;
+    topSimEl.setAttribute("aria-label", `Simulation: ${meta.label}. Switch simulation suite`);
+  }
+  if (simPopEl) {
+    for (const b of simPopEl.querySelectorAll(".sim-opt[data-sim]")) {
+      const on = b.dataset.sim === sk;
+      b.setAttribute("aria-selected", on ? "true" : "false");
+      b.classList.toggle("on", on);
+    }
+  }
   const grp = $("#grp-gal"); if (!grp) return; grp.hidden = !GIX; if (!GIX) return;
-  const e = GIX.byId.get(GAL), b = $("#gxy-open"), lab = b.querySelector(".glab");
-  lab.textContent = String(GAL); lab.dataset.id = String(GAL);
-  const head = sk === "tng50" ? `Subhalo ${GAL}` : `${meta.label} ${activeNoun()} ${GAL}`;
-  b.dataset.tip = `${head}, ${e && e.n ? e.n + " sightlines" : "this galaxy"}; click to pick another`;
-  b.setAttribute("aria-label", `Galaxy: ${head}. Pick another galaxy`);
+  const e = GIX.byId.get(GAL), b = $("#gxy-open"), lab = b.querySelector(".glab"), sid = shortClusterId(GAL, e);
+  lab.textContent = sid; lab.dataset.id = String(GAL);
+  const head = sk === "tng50" ? `Subhalo ${GAL}` : `${meta.label} ${activeNoun()} ${sid}`;
+  b.dataset.tip = `${head}, ${e && e.n ? e.n + " sightlines" : "this cluster"}; click to pick another`;
+  b.setAttribute("aria-label", `Cluster: ${head}. Pick another cluster`);
   document.body.dataset.galaxy = String(GAL);
   document.body.dataset.sim = sk;
 }
-/* the provenance chip in the plot footer (visible on phones too, review2_ux S3): the galaxy id and its spectra source;
+/* the provenance chip in the plot footer (visible on phones too, review2_ux S3): the cluster id and its spectra source;
    a click opens Data and methods, whose spectra paragraphs follow the source */
 function sourceUI() {
   const bar = $("#bar"); if (!bar) return;
@@ -1118,9 +1196,9 @@ function sourceUI() {
     chip.setAttribute("aria-haspopup", "dialog"); chip.style.cssText = "flex:none;white-space:nowrap;cursor:pointer;background:none;font-family:inherit";
     chip.addEventListener("click", ev => { ev.stopPropagation(); const pop = $("#pop-methods"); if (pop) { if (pop.hidden) openPop(chip, pop); else closePops(); } });
     bar.insertBefore(chip, bar.firstChild); }
-  const sbi = srcOf(SRC) === "sbi", gid = GAL ?? CFG.galaxy?.subhalo_id, sk = activeSimKey(), meta = SIM_META[sk] || SIM_META.tng50;
-  const noun = sk === "tng50" ? `Subhalo ${gid}` : `${meta.label} ${activeNoun()} ${gid}`;
-  chip.textContent = `${GIX && gid != null ? gid + "  " : ""}${sbi ? "THOR" : "Trident"}${GFLAGS.gas_poor ? "  gas-poor" : ""}`;
+  const sbi = srcOf(SRC) === "sbi", gid = GAL ?? CFG.galaxy?.subhalo_id, sid = shortClusterId(gid), sk = activeSimKey(), meta = SIM_META[sk] || SIM_META.tngcluster;
+  const noun = sk === "tng50" ? `Subhalo ${gid}` : `${meta.label} ${activeNoun()} ${sid}`;
+  chip.textContent = `${GIX && gid != null ? sid + "  " : ""}${sbi ? "THOR" : "Trident"}${GFLAGS.gas_poor ? "  gas-poor" : ""}`;
   chip.dataset.tip = sbi ? `${noun}: THOR rays through the Voronoi mesh, CLOUDY FG11 ions; click for details`
     : `${noun}: Trident HM2012 spectra, ±R200c; click for details`;
   chip.setAttribute("aria-label", `${noun}, spectra source ${sbi ? "THOR" : (SRC.label || "Trident")}. Open data and methods`);
@@ -1129,27 +1207,30 @@ function sourceUI() {
 const MEL = {}, MTX = {};
 function methodsText(sbi) {
   const ag = $("#about-gal"); if (!ag) return;
-  if (!("tau" in MEL)) { const n = ag.nextElementSibling; MEL.tau = n && !n.id && /Trident/.test(n.textContent) ? n : null;
+  if (!("tau" in MEL)) { const n = ag.nextElementSibling; MEL.tau = n && (n.id === "methods-tau" || (!n.id && /Trident|Optical depths/.test(n.textContent))) ? n : null;
     MEL.ions = $("#methods-ions"); MEL.atomic = $("#methods-atomic");
     MEL.lic = $("#lic-spectra"); MEL.lic2 = MEL.lic && MEL.lic.nextElementSibling;
-    MEL.simTng = $("#lic-sim-tng"); MEL.simFire = $("#lic-sim-fire");
+    MEL.simTng = $("#lic-sim-tng"); MEL.simTng300 = $("#lic-sim-tng300"); MEL.simFire = $("#lic-sim-fire");
     MEL.simSimba = $("#lic-sim-simba"); MEL.simAgora = $("#lic-sim-agora"); MEL.simCamels = $("#lic-sim-camels");
     const pv = document.createElement("p"); pv.id = "methods-source"; pv.hidden = true; ag.after(pv); MEL.src = pv; }
   const sk = activeSimKey();
   const SBI_TXT = {
-    tau: "Optical depths from a GPU Voigt renderer (fp64) at 0.5 km/s over ±1500 km/s, resampled by velocity; sightlines ±2 R200c long. Velocities are relative to the galaxy's systemic velocity.",
-    ions: "Spectra: rays through the TNG50 Voronoi mesh traced by THOR (Byrohl & Nelson 2025, arXiv:2507.11603), ion fractions from CLOUDY (Ferland et al. 2017) with the FG11 UV background (Faucher-Giguère et al. 2009) and Rahmati et al. (2013) self-shielding for H I. 3D ion cubes: Trident HM2012 (H I from the TNG neutral fraction) within r ≤ 400 kpc, so a sightline drawn through a cube can differ from its spectrum by a few tenths of a dex.",
-    atomic: "Atomic data: the profile components (H I Lyα Γ = 6.265 × 10⁸ s⁻¹, Wiese and Fuhr 2009); the catalogue fits and your in-browser refits use the same f and Γ. Saturated components are lower limits."};
+    tau: "Optical depths from a GPU Voigt renderer (fp64) at 0.5 km/s over ±1500 km/s, resampled by velocity; 120-ray cluster sightlines spanning ±4 Mpc (up to ±2 R200c). Velocities are relative to the cluster's systemic velocity.",
+    ions: "Spectra: 120-ray cluster sightlines traced through the Voronoi mesh by THOR (Byrohl & Nelson 2025, arXiv:2507.11603), ion fractions from CLOUDY (Ferland et al. 2017) with the FG11 UV/X-ray background (Faucher-Giguère et al. 2009) and Rahmati et al. (2013) self-shielding for H I. 5-level 3D ICM cubes cover ±4 Mpc (L0, 31.25 kpc voxels) → ±1 Mpc (L1, 7.8 kpc) → ±250 kpc (L2, 1.95 kpc) → ±62.5 kpc (L3, 488 pc) → ±15 kpc (L4, 117 pc BCG core), plus BCG and satellite starlight cubes S0..S4.",
+    atomic: "Atomic data: the profile components (H I Lyα Γ = 6.265 × 10⁸ s⁻¹, Wiese and Fuhr 2009; O VII 21.602 Å from Verner et al. 1996); the catalogue fits and your in-browser refits use the same f and Γ. Saturated components are lower limits."};
   const SIM_IONS = {
+    tngcluster: "120-ray sightlines traced through the TNG-Cluster Voronoi mesh with THOR (Byrohl & Nelson 2025) and CLOUDY FG11 ionisation tables (plus Trident HM2012 5-level 3D ICM cubes from ±4 Mpc L0 to ±15 kpc L4 BCG cores).",
+    simba100: "H I: SIMBA-100 neutral hydrogen fraction (self-shielding included); metal ions: Trident HM2012 UV/X-ray background table with tracked SIMBA element abundances across ±4 Mpc cluster cutouts.",
+    tng300: "120-ray sightlines traced through the TNG300-1 Voronoi mesh with THOR (Byrohl & Nelson 2025) and CLOUDY FG11 ionisation tables across ±4 Mpc cluster volumes.",
     fire2: "H I: FIRE-2 neutral hydrogen fraction (self-shielding included); metal ions: Trident HM2012 table with tracked FIRE-2 element abundances.",
     simba: "H I: SIMBA neutral hydrogen fraction (self-shielding included); metal ions: Trident HM2012 table with tracked SIMBA element abundances.",
     agora: "H I: AGORA AREPO neutral hydrogen fraction (self-shielding included); metal ions: Trident HM2012 table with tracked metallicity.",
     camels: "H I: simulation neutral hydrogen fraction (self-shielding included); metal ions: Trident HM2012 table across CAMELS (IllustrisTNG, SIMBA, Astrid, Swift-EAGLE)."
   };
-  /* Data and credits: simulation and spectra paragraphs are shown; the ones that apply to this galaxy lead with "This galaxy" */
-  for (const [el, on] of [[MEL.lic, !sbi], [MEL.lic2, sbi], [MEL.simTng, sk === "tng50"], [MEL.simFire, sk === "fire2"], [MEL.simSimba, sk === "simba"], [MEL.simAgora, sk === "agora"], [MEL.simCamels, sk === "camels"]]) {
+  /* Data and credits: simulation and spectra paragraphs are shown; the ones that apply to this cluster lead with "This cluster" */
+  for (const [el, on] of [[MEL.lic, !sbi], [MEL.lic2, sbi], [MEL.simTng, sk === "tngcluster" || sk === "tng50"], [MEL.simTng300, sk === "tng300"], [MEL.simFire, sk === "fire2"], [MEL.simSimba, sk === "simba100" || sk === "simba"], [MEL.simAgora, sk === "agora"], [MEL.simCamels, sk === "camels"]]) {
     if (!el) continue; let t = el.querySelector(".cur-l");
-    if (on && !t) { t = document.createElement("strong"); t.className = "cur-l"; t.textContent = "This galaxy: "; el.prepend(t); } else if (!on && t) t.remove();
+    if (on && !t) { t = document.createElement("strong"); t.className = "cur-l"; t.textContent = "This cluster: "; el.prepend(t); } else if (!on && t) t.remove();
   }
   for (const k of ["tau", "ions", "atomic"]) { const el = MEL[k]; if (!el) continue; if (!(k in MTX)) MTX[k] = el.innerHTML;
     if (sbi) el.textContent = SBI_TXT[k]; else if (k === "ions" && SIM_IONS[sk]) el.textContent = SIM_IONS[sk]; else el.innerHTML = MTX[k]; }
@@ -1157,9 +1238,9 @@ function methodsText(sbi) {
 }
 function aboutText() {
   const g = CFG.galaxy || {}; if (!g.R200c_kpc) return;
-  const sim = g.sim || activeSim() || "TNG-Cluster", noun = activeNoun(), gid = g.subhalo_id ?? GAL;
+  const sim = g.sim || activeSim() || "TNG-Cluster", noun = activeNoun(), gid = g.subhalo_id ?? GAL, sid = shortClusterId(gid);
   const mStr = g.M200c_Msun ? (+g.M200c_Msun >= 5e13 ? `, M200c ${(+g.M200c_Msun / 1e14).toFixed(2)} × 10¹⁴ M⊙` : `, M200c ${(+g.M200c_Msun / 1e12).toFixed(2)} × 10¹² M⊙`) : "";
-  $("#about-gal").textContent = `Sightlines through the intracluster medium (ICM) of ${sim} (${noun} ${gid} at z = ${g.redshift ?? 0}, R200c ${nf.format(Math.round(+g.R200c_kpc))} kpc${mStr}), spanning ±4 Mpc (L0) down to ±15 kpc BCG cores (L4).`;
+  $("#about-gal").textContent = `Sightlines through the intracluster medium (ICM) of ${sim} (${noun} ${sid} at z = ${g.redshift ?? 0}, R200c ${nf.format(Math.round(+g.R200c_kpc))} kpc${mStr}), part of the 382-cluster atlas (352 TNG-Cluster, 10 SIMBA-100, 20 TNG300-1) spanning ±4 Mpc (L0) down to ±15 kpc BCG cores (L4).`;
 }
 /* the 3D engine is per galaxy (its cubes, frame and lines): dispose it and remount on demand (the tab, or the thumbnail
    where it was live). viewer.dispose() also removes its control column with the #picker-root it adopted: put one back */
@@ -1216,7 +1297,7 @@ const FIND_TIPS = {fq_ion: "Ion whose fitted components are searched",
   fq_logN_lo: "Lowest column density, log10 cm⁻²; saturated fits count as lower limits", fq_logN_hi: "Highest column density, log10 cm⁻²; leave empty to keep saturated fits",
   fq_b_lo: "Components with Doppler b below this do not match, km/s", fq_b_hi: "Components with Doppler b above this do not match, km/s",
   fq_bkpc_lo: "Smallest sightline impact parameter, kpc", fq_bkpc_hi: "Largest sightline impact parameter, kpc",
-  fq_orient: "Sightline orientation relative to the disk", fq_sort: "Rank by match score, impact parameter or component count"};
+  fq_orient: "Sightline orientation relative to the cluster principal axis", fq_sort: "Rank by match score, impact parameter or component count"};
 function tipFind() { for (const [id, t] of Object.entries(FIND_TIPS)) { const e = document.getElementById(id); if (e) e.dataset.tip = t; } }
 function mountFind() { if (FINDP) return; FINDP = import(modUrl("search.js")).then(m => { const r = m.mountFind($("#find-body"), window.tngApp); tipFind(); return r; })
   .catch(x => { FINDP = null; $("#find-body").insertAdjacentHTML("beforeend", `<p class="msg bad">Search failed to load: ${esc(x.message)}</p>`); }); }
@@ -1403,7 +1484,7 @@ function writeHash() { try { history.replaceState(null, "", "#" + galaxyHashPart
 const writeHashSoon = debounce(writeHash, 150);
 addEventListener("hashchange", () => {
   if (GIX) { const g = parseGalaxy(location.hash, location.search, GIX) ?? GIX.default;      /* g=<id> in a pasted or edited URL switches the galaxy */
-    if (g !== GAL && !GIX.byId.has(g)) note(`subhalo ${g} is not in this sample; showing ${activeNoun()} ${GAL}`, "bad");
+    if (g !== GAL && !GIX.byId.has(g)) note(`${activeNoun()} ${g} is not in this sample; showing ${activeNoun()} ${shortClusterId(GAL)}`, "bad");
     if (g !== GAL && GIX.byId.has(g)) { const N = parseHash(location.hash, reg, S); Object.assign(S, N, {id: S.id, tab: S.tab}); syncAll();
       switchGalaxy(g, {want: N.id, source: "hash"}).then(() => { if (N.tab !== S.tab) showTab(N.tab); }); return; } }
   const prev = S.id, tab = S.tab, N = parseHash(location.hash, reg, S), want = N.id;
@@ -1511,13 +1592,13 @@ initTips();
   if (H.tab === "3d") showTab("3d");
   const disc = discover();
   const asked = unlistedGalaxy(GIX, location.hash, location.search);
-  if (asked != null) note(`subhalo ${asked} is not in this sample; showing subhalo ${GAL}`, "bad");   /* S2: never silently */
+  if (asked != null) note(`${activeNoun()} ${asked} is not in this sample; showing ${activeNoun()} ${shortClusterId(GAL)}`, "bad");   /* S2: never silently */
   sourceUI();
   const loadCat = async () => { const r = await fetch(CFG.catalog_url); if (!r.ok) throw new Error("HTTP " + r.status); const c = await r.json(); for (const e of c.entries || []) upsert(e, true); setSource(c); };
   try { await loadCat(); staticOk = true; }
   catch (x) {
     if (!isDefGal()) { const g = GAL; GAL = GIX.default; applyPack(packFor(GIX, GAL, LEGACY), null); GAL_READY = Promise.resolve(); galaxyUI(); aboutText();   /* a listed pack that is not there: back to the default galaxy */
-      note(`subhalo ${g} could not be loaded (${x.message}); showing subhalo ${GAL}`, "bad");
+      note(`${activeNoun()} ${g} could not be loaded (${x.message}); showing ${activeNoun()} ${shortClusterId(GAL)}`, "bad");
       try { await loadCat(); staticOk = true; } catch (y) { $("#galcount").textContent = `catalogue unavailable (${y.message})`; } }
     else $("#galcount").textContent = `catalogue unavailable (${x.message})`; }
   const cached = await IDB.all(); if (Array.isArray(cached)) for (const c of cached) if (c && c.entry && (!GIX || (c.galaxy ?? GIX.default) === GAL) && !CAT.has(c.entry.id)) upsert(c.entry, false);

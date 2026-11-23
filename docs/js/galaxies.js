@@ -33,6 +33,7 @@ export function inferSim(e) {
   if (/^camels_astrid/i.test(id)) return "CAMELS-Astrid";
   if (/^camels_simba/i.test(id)) return "CAMELS-SIMBA";
   if (/^camels_/i.test(id)) return "CAMELS-IllustrisTNG";
+  if (/^\d+$/.test(id)) return "TNG50-1";
   return "TNG-Cluster";
 }
 export function inferSimKey(e) {
@@ -59,11 +60,19 @@ export const SIM_META = {
   camels: {label: "CAMELS/EAGLE", title: "CAMELS sightlines", groupTitle: "CAMELS and Swift-EAGLE Milky Way halos", msg: "CAMELS (IllustrisTNG, SIMBA, Astrid, Swift-EAGLE) z = 0 halos", tip: "Show only CAMELS and Swift-EAGLE galaxies", topTip: "Switch to CAMELS (IllustrisTNG, SIMBA, Astrid, Swift-EAGLE) halos", tag: "CAMELS", tagTip: "CAMELS project (IllustrisTNG, SIMBA, Astrid, Swift-EAGLE)", credit: "Simulation: CAMELS & Swift-EAGLE (CAMELS Collaboration)"}
 };
 export const SIM_ORDER = ["tngcluster", "simba100", "tng300", "tng50", "fire2", "simba", "agora", "camels"];
+export function shortClusterId(id, e = null) {
+  const s = String(id ?? e?.id ?? "");
+  let m;
+  if ((m = s.match(/^tngc_(h\d+)$/i))) return m[1];
+  if ((m = s.match(/^simba100_c(\d+)_(h\d+)$/i))) return `C${m[1]} (${m[2]})`;
+  if ((m = s.match(/^tng300_sub(\d+)$/i))) return m[1];
+  return s;
+}
 export const galNoun = e => {
   const sk = inferSimKey(e);
   return sk === "tngcluster" || sk === "simba100" || sk === "tng300" ? "Cluster" : sk === "fire2" || sk === "agora" || sk === "camels" ? "Halo" : sk === "simba" ? "Galaxy" : "Subhalo";
 };
-export const galWord = (e, id) => `${galNoun(e || {id})} ${id ?? e?.id ?? ""}`.trim();
+export const galWord = (e, id) => `${galNoun(e || {id})} ${shortClusterId(id ?? e?.id ?? "", e)}`.trim();
 
 /* ---------------- index ---------------- */
 /* -> {default, base, vizBase, list, byId} or null when the config lists fewer than two usable galaxies */
@@ -96,6 +105,7 @@ export const normSimKey = s => {
   return "";
 };
 
+const ID_ALIAS = {tngc_h0: "tngc_h14258311", tng300_h0: "tng300_sub1338052"};
 /* g=<id> from the hash (wins) or the query; null when absent or malformed.
    When gix (index) is given as the 2nd or 3rd argument, also supports #sim=fire2 (picks first matching galaxy if g= is omitted). */
 export function parseGalaxy(hash = "", search = "", gix = null) {
@@ -103,7 +113,11 @@ export function parseGalaxy(hash = "", search = "", gix = null) {
   if (search && typeof search === "object" && Array.isArray(search.list)) { index = search; srch = ""; }
   for (const s of [String(hash).replace(/^#/, ""), String(srch).replace(/^\?/, "")]) {
     const p = new URLSearchParams(s), g = p.get("g"), sim = normSimKey(p.get("sim"));
-    if (g != null && ID_OK.test(g.trim())) return normId(g.trim());
+    if (g != null && ID_OK.test(g.trim())) {
+      const raw = g.trim(), aliased = ID_ALIAS[raw.toLowerCase()];
+      if (aliased && (!index || !index.byId || (!index.byId.has(normId(raw)) && index.byId.has(aliased)))) return aliased;
+      return normId(raw);
+    }
     if (sim && index && Array.isArray(index.list)) {
       const hit = index.list.find(e => e.simKey === sim);
       if (hit) return hit.id;
@@ -128,8 +142,8 @@ export function unlistedGalaxy(index, hash, search) {
 export const galaxyHashPart = (index, id) => {
   if (!index || id == null || id === index.default) return "";
   const e = index.byId && index.byId.get(normId(id));
-  const sk = e && e.simKey;
-  return sk && sk !== "tng50" ? `sim=${sk}&g=${id}&` : `g=${id}&`;
+  const sk = e && e.simKey, defSk = index.byId?.get(index.default)?.simKey || "tng50";
+  return sk && sk !== "tng50" && sk !== defSk ? `sim=${sk}&g=${id}&` : `g=${id}&`;
 };
 
 /* where a galaxy's data lives. legacy = the page's own config for the default galaxy (catalog_url, bin_dir,
@@ -153,7 +167,7 @@ export function packFor(index, id, legacy) {
     ? e.viz_base
     : (index.vizBase ? index.vizBase.split("{id}").join(String(id)) : b + "viz/");
   const viz = e.viz ? {manifest_url: b + "viz/manifest_v2.json", base: vb,
-    fallback_base: b + "viz/", dataset: null} : null;
+    fallback_base: vb !== b + "viz/" ? b + "viz/" : null, dataset: null} : null;
   return {id, legacy: false, catalog_url: b + "catalog.json", bin_dir: b + "s/", components_url: b + "components.json",
     galaxy_url: b + "galaxy.json", viz};
 }
@@ -218,7 +232,7 @@ export function matchGalaxy(e, q) {
   const terms = String(q || "").toLowerCase().replace(/\s*(<=|>=|<|>|=)\s*/g, "$1").split(/\s+/).filter(Boolean);
   const sk = inferSimKey(e);
   return terms.every(t => {
-    if (/^\d+$/.test(t)) return String(e.id).startsWith(t);
+    if (/^\d+$/.test(t)) return String(e.id).startsWith(t) || String(e.id).replace(/^(?:tngc_h|tng300_sub)/i, "").startsWith(t);
     const m = t.match(CMP);
     if (m) {
       const k = m[1].startsWith("sfr") ? "SFR" : m[1].startsWith("m2") || m[1] === "mh" ? "M200c" : "Mstar";
@@ -290,7 +304,7 @@ function tags(e) {
 export function galaxyCard(e) {
   if (!e) return "";
   const kv = (k, v, tip) => `<span class="pv" data-tip="${esc(tip)}"><i>${k}</i>${esc(v)}</span>`;
-  const head = `${galNoun(e)} ${e.id}`;
+  const head = `${galNoun(e)} ${shortClusterId(e.id, e)}`;
   return `<span class="gxid">${esc(head)}</span>${simTagHtml(e)}${kindWord(e) ? `<span class="gxk">${kindWord(e)}</span>` : ""}` +
     kv("log M*", lg(e.Mstar), "Stellar mass, log M⊙") + kv("SFR", fmtSfr(e.SFR), "Star formation rate, M⊙/yr") +
     kv("log M200c", lg(e.M200c), "Halo mass M200c, log M⊙") + (Number.isFinite(+e.R200c) && e.R200c ? kv("R200c", `${Math.round(+e.R200c)} kpc`, "Halo radius R200c") : "") +
@@ -340,26 +354,26 @@ export function createGalaxyPicker(els, opts) {
   const multiSim = sims.size > 1;
   let simBar = els.pop ? els.pop.querySelector("#gxy-sim") : null;
   if (multiSim && els.pop && !simBar) {
-    simBar = document.createElement("div");
+    simBar = document.createElement("select");
     simBar.id = "gxy-sim";
-    simBar.className = "seg";
-    simBar.setAttribute("role", "radiogroup");
     simBar.setAttribute("aria-label", "Simulation filter");
-    simBar.style.gridTemplateColumns = `repeat(${activeSimKeys.length + 1}, minmax(0, 1fr))`;
+    simBar.dataset.tip = "Filter clusters by simulation suite";
     const items = [
-      ["all", `All (${allList.length})`, "Show all galaxies grouped by simulation"],
-      ...activeSimKeys.map(sk => [sk, `${SIM_META[sk].label} (${counts[sk]})`, SIM_META[sk].tip])
+      ["all", `all sims (${allList.length})`],
+      ...activeSimKeys.map(sk => [sk, `${SIM_META[sk].label} (${counts[sk]})`])
     ];
-    simBar.innerHTML = items.map(([v, lab, tip], i) => `<label><input type="radio" name="gxy-sim" value="${v}" data-tip="${esc(tip)}"${i === 0 ? " checked" : ""}><span>${lab}</span></label>`).join("");
-    const fl = els.pop.querySelector(".fl");
-    if (fl) els.pop.insertBefore(simBar, fl); else els.pop.prepend(simBar);
+    simBar.innerHTML = items.map(([v, lab]) => `<option value="${v}">${esc(lab)}</option>`).join("");
+    const fl = els.pop.querySelector(".fl"), filt = els.pop.querySelector("#gxy-filter");
+    if (fl && filt) fl.insertBefore(simBar, filt);
+    else if (fl) fl.appendChild(simBar);
+    else els.pop.prepend(simBar);
   }
   const msgEl = els.pop ? els.pop.querySelector(".galf .msg") : null;
   function updateMsg() {
     if (!msgEl) return;
     if (!multiSim) {
       const onlySk = activeSimKeys[0] || "tng50";
-      msgEl.textContent = SIM_META[onlySk]?.msg || "TNG50-1 z = 0 Milky Way and M31 analogues";
+      msgEl.textContent = SIM_META[onlySk]?.msg || "TNG-Cluster z = 0 massive galaxy clusters";
       return;
     }
     msgEl.textContent = simFilter !== "all" && SIM_META[simFilter]
@@ -368,7 +382,7 @@ export function createGalaxyPicker(els, opts) {
   }
   els.head.innerHTML = COLS.map(([k, lab, tip]) => `<button type="button" class="gxs" data-sort="${k}" data-tip="${esc(tip)}" aria-sort="none">${lab}<b aria-hidden="true"></b></button>`).join("") + "<span></span>";
   function row(e, i, cur) {
-    const idTxt = multiSim ? `${galNoun(e)} ${e.id}` : String(e.id);
+    const idTxt = shortClusterId(e.id, e);
     return `<li role="option" id="gxy-opt-${i}" data-id="${esc(e.id)}" aria-selected="${e.id === cur}" aria-label="${esc(galaxyAria(e))}" data-tip="${esc(galaxyTip(e))}"${i === hl ? ' class="hl"' : ""}>` +
       `<span class="gxid">${esc(idTxt)}</span><span class="num">${lg(e.Mstar)}</span><span class="num">${fmtSfr(e.SFR)}</span><span class="num">${lg(e.M200c)}</span><span class="gxt">${tags(e)}</span></li>`;
   }
@@ -413,11 +427,11 @@ export function createGalaxyPicker(els, opts) {
   function setSim(s) {
     const k = s === "all" ? "all" : (normSimKey(s) || s);
     simFilter = (k === "all" || SIM_ORDER.includes(k)) ? k : "all";
-    if (simBar) for (const r of simBar.querySelectorAll('input[name="gxy-sim"]')) r.checked = r.value === simFilter;
+    if (simBar) simBar.value = simFilter;
     hl = -1; render();
   }
   function clear() { els.search.value = ""; els.filter.value = "all"; setSim("all"); els.search.focus(); }
-  if (simBar) simBar.addEventListener("change", ev => { if (ev.target && ev.target.name === "gxy-sim") setSim(ev.target.value); });
+  if (simBar) simBar.addEventListener("change", ev => { if (ev.target) setSim(ev.target.value); });
   els.head.addEventListener("click", ev => { const b = ev.target.closest("[data-sort]"); if (b) setSort(b.dataset.sort); });
   els.list.addEventListener("click", ev => { if (ev.target.closest('[data-act="clear"]')) { setTimeout(clear); return; }
     const li = ev.target.closest("li[data-id]"); if (li) opts.onPick(normId(li.dataset.id)); });

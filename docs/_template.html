@@ -3,22 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Detect &amp; Resolve: CGM absorbers</title>
+<title>Detect &amp; Resolve: ICM &amp; CGM absorbers</title>
 <link rel="icon" href="tng50/favicon.ico" sizes="32x32">
 <link rel="icon" href="tng50/img/icon/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="tng50/img/icon/icon-180.png">
 <link rel="manifest" href="tng50/site.webmanifest">
-<meta name="description" content="The S/N and spectral resolution needed to detect and resolve circumgalactic absorbers in twelve transitions.">
-<link rel="canonical" href="https://galaxies.tanmaysingh.uk/detect/">
+<meta name="description" content="The S/N and spectral resolution needed to detect and resolve intracluster and circumgalactic absorbers in twelve transitions.">
+<link rel="canonical" href="https://icm.tanmaysingh.uk/detect/">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://galaxies.tanmaysingh.uk/detect/">
-<meta property="og:title" content="Detect and resolve: CGM absorbers">
-<meta property="og:description" content="The S/N and spectral resolution needed to detect and resolve circumgalactic absorbers in twelve transitions.">
-<meta property="og:image" content="https://galaxies.tanmaysingh.uk/img/og/explorer.jpg">
+<meta property="og:url" content="https://icm.tanmaysingh.uk/detect/">
+<meta property="og:title" content="Detect and resolve: ICM &amp; CGM absorbers">
+<meta property="og:description" content="The S/N and spectral resolution needed to detect and resolve intracluster and circumgalactic absorbers in twelve transitions.">
+<meta property="og:image" content="https://icm.tanmaysingh.uk/img/og/explorer.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:image" content="https://galaxies.tanmaysingh.uk/img/og/explorer.jpg">
+<meta name="twitter:image" content="https://icm.tanmaysingh.uk/img/og/explorer.jpg">
 <link rel="preload" href="tng50/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="tng50/fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="tng50/css/tokens.css">
@@ -111,8 +111,8 @@ body.req #side{position:sticky;top:70px;max-height:calc(100dvh - 82px)}
 </head>
 <body class="req">
 <header id="top" class="glass">
-  <h1 id="title"><a href="tng50/">TNG50 sightlines</a></h1>
-  <nav id="tabs" aria-label="Pages"><a href="tng50/" data-tip="Mock spectra and 3D gas of TNG50 galaxies">Explorer</a><a href="tng50/learn/how-a-spectrum-is-made/" data-tip="How an absorption spectrum is made">Stories</a><a href="./" aria-current="page"><span class="l">Detect &amp; Resolve</span><span class="s">Detect</span></a></nav>
+  <h1 id="title"><a href="tng50/">ICM &amp; Cluster Atlas</a></h1>
+  <nav id="tabs" aria-label="Pages"><a href="tng50/" data-tip="Mock spectra and 3D ICM of 382 massive galaxy clusters">Explorer</a><a href="tng50/learn/how-a-spectrum-is-made/" data-tip="How an absorption spectrum is made">Stories</a><a href="./" aria-current="page"><span class="l">Detect &amp; Resolve</span><span class="s">Detect</span></a></nav>
   <span class="sp"></span>
   <div class="cl" id="cl-learn" role="group" aria-label="Learn">
     <button class="ib info" type="button" data-info="read" aria-controls="pop-read" aria-expanded="false" aria-label="How to read"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6.3"/><path d="M8 7.2v4M8 4.8v.2" stroke-linecap="round"/></svg></button>
@@ -120,7 +120,7 @@ body.req #side{position:sticky;top:70px;max-height:calc(100dvh - 82px)}
     <button class="ib info" type="button" data-info="licence" aria-controls="pop-licence" aria-expanded="false" aria-label="Data and credits"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6.3"/><path d="M10.2 6.3a2.6 2.6 0 1 0 0 3.4" stroke-linecap="round"/></svg></button>
   </div>
   <div class="cl hide-m" id="cl-share" role="group" aria-label="Source">
-    <a class="ib" id="gh-link" href="https://github.com/tanmay-starslab/cgm-absorber-requirements" target="_blank" rel="noopener" aria-label="Source code on GitHub"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38l-.01-1.49c-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48l-.01 2.2c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
+    <a class="ib" id="gh-link" href="https://github.com/tanmay-starslab/icm-atlas" target="_blank" rel="noopener" aria-label="Source code on GitHub"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38l-.01-1.49c-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48l-.01 2.2c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
   </div>
   <div class="cl" id="cl-prefs" role="group" aria-label="Preferences">
     <button class="ib" id="theme" type="button" aria-label="Theme: auto" data-mode="auto"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6.3"/><path d="M8 1.7v12.6A6.3 6.3 0 0 0 8 1.7z" fill="currentColor"/></svg></button>
@@ -128,7 +128,7 @@ body.req #side{position:sticky;top:70px;max-height:calc(100dvh - 82px)}
 </header>
 <div id="shell">
   <main id="stage">
-    <p id="intro">The S/N and resolving power that <b>detect</b> one absorber and <b>resolve</b> two, for twelve CGM transitions.</p>
+    <p id="intro">The S/N and resolving power that <b>detect</b> one absorber and <b>resolve</b> two, for twelve ICM &amp; CGM transitions.</p>
 
     <section class="glass pnl" id="p-chain" aria-labelledby="h-chain">
       <div class="ph"><h2 id="h-chain">Spectrum</h2>
@@ -221,7 +221,7 @@ body.req #side{position:sticky;top:70px;max-height:calc(100dvh - 82px)}
   <p>Spectrograph markers: modes covering the line at z = 0, from a sourced table (COS, STIS, FUSE); the open circle is the typical COS-Halos S/N. Variants with the tabulated HST/COS line-spread function are in the repository.</p></div>
 <div class="pop" id="pop-licence" role="dialog" aria-label="Data and credits" hidden><h3>Data and credits</h3>
   <h4>Atomic data</h4><p>Trident line list (BSD-3); Morton 2003; Verner et al. 1996.</p>
-  <h4>Code and figures</h4><p>Publication-quality figures, grids and code: <a href="https://github.com/tanmay-starslab/cgm-absorber-requirements" rel="noopener">github.com/tanmay-starslab/cgm-absorber-requirements</a> (MIT).</p></div>
+  <h4>Code and figures</h4><p>Publication-quality figures, grids and code: <a href="https://github.com/tanmay-starslab/icm-atlas" rel="noopener">github.com/tanmay-starslab/icm-atlas</a> (MIT).</p></div>
 <div class="pop" id="pop-chain" role="dialog" aria-label="Spectrum" hidden><h3>From gas to spectrum</h3>
   <p>A cloud imprints an optical depth τ(v) on the background light. The spectrograph blurs the absorbed flux with its line-spread function (LSF) of width c/R, then samples it with noise. Play the sequence, or step through it.</p>
   <p class="story-in">The same chain on a simulated galaxy, from its gas cells to a fitted spectrum: <a href="tng50/learn/how-a-spectrum-is-made/">How an absorption spectrum is made</a>, including <a href="tng50/learn/how-a-spectrum-is-made/#s=lsf-1">the blur</a> and <a href="tng50/learn/how-a-spectrum-is-made/#s=noise-1">the noise</a>.</p></div>
@@ -393,7 +393,7 @@ const SLATE = ["#475569", "#A3AEC2"];
 const regKey = o => o.ion.replace(/ /g, "");          // explorer key: "O VI" -> "OVI"
 const isDark = () => (document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")) === "dark";
 const ionCol = o => (ION_COLORS[regKey(o)] || SLATE)[isDark() ? 1 : 0];
-const S = {i: ions.findIndex(o => o.ion === "O VI"), R: 17000, snr: 10, logN: 0, b: 0, dv: 30, seed: 7};
+const S = {i: Math.max(0, ions.findIndex(o => o.ion === "O VII")), R: 3000, snr: 10, logN: 0, b: 0, dv: 30, seed: 7};
 const ion = () => ions[S.i];
 function defaults() { const o = ion(); S.logN = +o.logN_tau1.toFixed(2); S.b = o.b_fid; S.dv = Math.max(o.sep.dv[0] * 2, Math.round(1.6 * fwhmEff(S.R, o.b_fid))); warm = null; }
 function buildIonChips() {

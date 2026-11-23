@@ -202,6 +202,7 @@ def build_cluster_list() -> list[dict]:
         r200 = float(gj.get("R200c_kpc") or r200c_from_m200c(m200))
         mstar = float(gj.get("Mstar_Msun") or (m200 * 0.015))
         sfr = float(gj.get("SFR_Msun_yr") or 0.2)
+        src_kind = "sbi" if str((cj.get("spectra_source") or {}).get("source", "")).startswith("sbi") else "trident"
         w_base, v_base = web_and_viz_base(cid, "SIMBA-100")
         simba_entries.append({
             "id": cid,
@@ -217,7 +218,7 @@ def build_cluster_list() -> list[dict]:
             "m31": False,
             "n": n_rays,
             "viz": True,
-            "src": "trident",
+            "src": src_kind,
             "base": w_base,
             "viz_base": v_base,
         })
@@ -298,7 +299,13 @@ def render_index_html(default_gal: dict, cluster_list: list[dict]) -> None:
         "R200c_kpc": default_gal.get("R200c_kpc", 2436.2),
     }
     data_obj["n_static"] = 120
-    data_obj["defaults"] = {"id": "face_b0010_a000"}
+    data_obj["defaults"] = {
+        "id": "face_b0010_a000",
+        "ions": ["OVII", "NeVIII", "OVI", "NV", "HI"],
+        "layout": "1",
+        "vhw": 1000,
+        "vhw_kms": 1000,
+    }
     data_obj["custom"] = {"r_max_kpc": 4000, "l_min_kpc": 20, "l_max_kpc": 8000}
     data_obj["viz"] = {
         "manifest_url": "data/viz/manifest_v2.json",

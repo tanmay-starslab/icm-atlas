@@ -251,10 +251,65 @@ def upload_to_hf_repo(api: HfApi, repo: str, clusters: list[tuple[str, list[tupl
     print(f"[{repo}] Finished in {time.time() - t0:.1f}s!", flush=True)
 
 
+def upload_web_only_for_clusters(
+    api: HfApi,
+    repo: str,
+    clusters: list[tuple[str, Path, str]],
+    batch_clusters: int = 10,
+) -> None:
+    """Force-upload updated web sightline packs (galaxy.json, catalog.json, components.json, s/*.bin)
+    for the specified clusters (e.g. the 10 SIMBA-100 + 20 TNG300-1 clusters) to `repo`."""
+    t0 = time.time()
+    V._call(api.create_repo, repo, repo_type="dataset", private=False, exist_ok=True)
+    todo_clusters = []
+    for cid, cdir, _kind in clusters:
+        wdir = cdir / "web"
+        pre = f"{cid}/"
+        c_ops = []
+        c_bytes = 0
+        for name in ("galaxy.json", "catalog.json", "components.json"):
+            p = wdir / name
+            obj = json.loads(p.read_text(encoding="utf-8"))
+            clean = U.strip_private(obj)
+            b = (json.dumps(clean, separators=(",", ":"), allow_nan=False) + "\n").encode("utf-8")
+            c_ops.append(CommitOperationAdd(path_in_repo=pre + name, path_or_fileobj=b))
+            c_bytes += len(b)
+        for bp in sorted((wdir / "s").glob("*.bin")):
+            c_ops.append(CommitOperationAdd(path_in_repo=pre + "s/" + bp.name, path_or_fileobj=str(bp)))
+            c_bytes += bp.stat().st_size
+        todo_clusters.append((cid, c_ops, c_bytes))
+
+    for i in range(0, len(todo_clusters), batch_clusters):
+        batch = todo_clusters[i : i + batch_clusters]
+        cids = [b[0] for b in batch]
+        ops = [op for b in batch for op in b[1]]
+        mb = sum(b[2] for b in batch) / 1e6
+        t_c = time.time()
+        print(
+            f"[{repo}] Committing web-pack upgrade batch {i // batch_clusters + 1} "
+            f"({', '.join(cids)}: {len(ops)} files, {mb:.1f} MB) ...",
+            flush=True,
+        )
+        V._call(
+            api.create_commit,
+            repo,
+            ops,
+            repo_type="dataset",
+            commit_message=f"Upgrade full-cluster 2-4 Mpc THOR sightline packs: {', '.join(cids)}",
+        )
+        print(f"[{repo}] Committed {', '.join(cids)} in {time.time() - t_c:.1f}s", flush=True)
+    print(f"[{repo}] Completed web-pack upgrade for {len(todo_clusters)} clusters in {time.time() - t0:.1f}s!", flush=True)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Upload completed ICM cluster packs to Hugging Face shards 0 and 1.")
     ap.add_argument("--batch-clusters", type=int, default=8, help="Clusters per Hugging Face commit (default: 8)")
     ap.add_argument("--shard", type=int, choices=(0, 1), default=None, help="Optional single shard to upload (0 or 1)")
+    ap.add_argument(
+        "--upgrade-simba-tng300-web",
+        action="store_true",
+        help="Force-upload updated web sightline packs (catalog.json, components.json, galaxy.json, s/*.bin) for the 30 SIMBA-100 & TNG300-1 clusters to shard 0.",
+    )
     args = ap.parse_args()
 
     os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
@@ -262,6 +317,11 @@ def main() -> int:
     api = HfApi(token=token)
 
     completed = collect_completed_clusters()
+    if args.upgrade_simba_tng300_web:
+        target_30 = [c for c in completed if c[2] in ("SIMBA-100", "TNG300-1")]
+        print(f"Upgrading web sightline packs for {len(target_30)} SIMBA-100 + TNG300-1 clusters on {WEB_REPOS[0]}...", flush=True)
+        upload_web_only_for_clusters(api, WEB_REPOS[0], target_30, batch_clusters=args.batch_clusters)
+        return 0
     simba_all = [c[0] for c in completed if c[2] == "SIMBA-100"]
     tng300_all = [c[0] for c in completed if c[2] == "TNG300-1"]
     tngc_all = [c[0] for c in completed if c[2] == "TNG-Cluster"]

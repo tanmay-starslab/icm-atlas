@@ -63,14 +63,15 @@
  },
  "defaults": {
   "ions": [
-   "HI",
-   "MgII",
-   "SiIII",
-   "CIV",
-   "OVI"
+   "OVII",
+   "NeVIII",
+   "OVI",
+   "NV",
+   "HI"
   ],
-  "layout": "4",
-  "vhw_kms": 400
+  "layout": "1",
+  "vhw": 1000,
+  "vhw_kms": 1000
  },
  "ions": [
   {

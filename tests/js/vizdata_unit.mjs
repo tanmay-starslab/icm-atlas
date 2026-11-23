@@ -11,9 +11,9 @@ const HERE = dirname(fileURLToPath(import.meta.url)), ROOT = join(HERE, "../..")
 let fails = 0; const check = (ok, msg) => { console.log(`${ok ? "ok  " : "FAIL"} ${msg}`); if (!ok) fails++; };
 
 /* ---- 1. GAS_LEVELS & STAR_LEVELS L0..L4, S0..S4 ---- */
-check(GAS_LEVELS.L0 === 400 && GAS_LEVELS.L1 === 100 && GAS_LEVELS.L2 === 25 && GAS_LEVELS.L3 === 6.25 && GAS_LEVELS.L4 === 1.5,
+check(GAS_LEVELS.L0 === 4000 && GAS_LEVELS.L1 === 1000 && GAS_LEVELS.L2 === 250 && GAS_LEVELS.L3 === 62.5 && GAS_LEVELS.L4 === 15,
   `GAS_LEVELS L0..L4: ${JSON.stringify(GAS_LEVELS)}`);
-check(STAR_LEVELS.S0 === 400 && STAR_LEVELS.S1 === 100 && STAR_LEVELS.S2 === 25 && STAR_LEVELS.S3 === 6.25 && STAR_LEVELS.S4 === 1.5,
+check(STAR_LEVELS.S0 === 4000 && STAR_LEVELS.S1 === 1000 && STAR_LEVELS.S2 === 250 && STAR_LEVELS.S3 === 62.5 && STAR_LEVELS.S4 === 15,
   `STAR_LEVELS S0..S4: ${JSON.stringify(STAR_LEVELS)}`);
 
 /* ---- 2. validateManifestV2 with L3, L4, S3, S4 ---- */
@@ -65,15 +65,15 @@ const M = JSON.parse(readFileSync(join(ROOT, "docs/tng50/data/viz/manifest_v2.js
     "viewer3d.js filters GAS_L and STAR_L dynamically from manifest.levels with L0..L2 / S0..S2 fallback");
   check(vsrc.includes("L3: 6.25, L4: 1.5") && vsrc.includes("S3: 6.25, S4: 1.5"),
     "viewer3d.js includes L3/L4 and S3/S4 half_kpc fallbacks (6.25 and 1.5 kpc)");
-  check(vsrc.includes("manifest?.levels?.L4 ? 0.4 : manifest?.levels?.L3 ? 1.5 : 15") &&
-        vsrc.includes("manifest?.levels?.L3 ? 0.05 : 0.5"),
+  check(vsrc.includes("controls.minDistance = H0 === 400 ? 0.4 : 0.25 * finestHalf") &&
+        vsrc.includes("H0 === 400 ? (manifest?.levels?.L3 ? 0.05 : 0.5) : Math.max(1e-4, 1e-4 * finestHalf)"),
     "viewer3d.js lowers controls.minDistance and camera.near dynamically for L3/L4");
-  check(vsrc.includes("winIdx === 0 ? (manifest?.levels?.L0?.r_mask_kpc ?? 400) : 1e9") &&
+  check(vsrc.includes("winIdx === 0 ? mask0() : 1e9") &&
         vsrc.includes("U.uHalf.value.set(half(gWin[0]), half(gWin[1]), half(gWin[2]))"),
     "viewer3d.js updates 3-slot sliding window uHalf and disables uMask0 when winIdx > 0");
-  check(vsrc.includes("[0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500]") &&
+  check(vsrc.includes("[0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000]") &&
         vsrc.includes("${Math.round(best * 1000)} pc"),
-    "viewer3d.js physical scale bar includes sub-kpc stops down to 0.05 kpc formatted in pc");
+    "viewer3d.js physical scale bar includes sub-kpc stops down to 0.05 kpc formatted in pc and Mpc stops up to 5000 kpc");
   check(vsrc.includes('id="v3-dust" checked data-tip="Attenuate starlight through cold dust lanes along the ray">dust lanes</label>'),
     "viewer3d.js declares #v3-dust checkbox in Layers card with <= 12-word data-tip");
   check(vsrc.indexOf('id="v3-dust"') < vsrc.indexOf("<details><summary>star brightness</summary>") &&

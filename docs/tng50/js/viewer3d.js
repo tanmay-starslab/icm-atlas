@@ -54,7 +54,7 @@ export {VOL_KEYS, decodeU8, gunzipIfNeeded, speciesList, velocityList,
    double-clicking the stage (densest sample of the current field along the ray), to the selected sightline (closest
    approach to the galaxy) or to typed kpc; the stage chip / key C brings it back. Kept in the URL as ?pv=x,y,z (the
    page's hash writes keep the search part). Pure helpers below run in node (tests/js/pivot_unit.mjs). ---- */
-export const PIVOT = {eps: 0.5, max: 400};               // off-centre beyond eps kpc; typed / URL values clamped to ±max
+export const PIVOT = {eps: 0.5, max: 4000};              // off-centre beyond eps kpc; typed / URL values clamped to ±max
 const r1 = x => { const v = Math.round(x * 10) / 10; return Object.is(v, -0) ? 0 : v; };
 export const offCentre = p => !!p && Math.hypot(p[0], p[1], p[2]) > PIVOT.eps;
 /* "x,y,z" (kpc) -> [x, y, z] clamped to ±PIVOT.max, or null (absent, malformed, or at the centre) */
@@ -72,7 +72,7 @@ export function parseCam(s) {
   const t = String(s ?? "").split(",").map(x => x.trim());
   if (t.length !== 6 || t.some(x => x === "")) return null;
   const v = t.map(Number); if (!v.every(Number.isFinite)) return null;
-  const p = v.slice(0, 3).map(x => Math.max(-5600, Math.min(5600, x))), u = v.slice(3, 6);
+  const p = v.slice(0, 3).map(x => Math.max(-56000, Math.min(56000, x))), u = v.slice(3, 6);
   const uLen = Math.hypot(u[0], u[1], u[2]); if (uLen < 1e-6) return null;
   return {p: p.map(r2), u: u.map(x => r2(x / uLen))};
 }
@@ -545,10 +545,10 @@ async function create(app, opts = {}) {
   const el = document.createElement("div"); el.className = "v3d";
   el.innerHTML = `<div class="v3d-stage"><canvas tabindex="0" role="img" aria-label="3D view"></canvas>
     <div class="v3d-ov v3d-msg"></div><div class="v3d-sr" id="v3-live" role="status" aria-live="polite"></div>
-    <button type="button" class="v3d-orb" id="v3-orbit" aria-pressed="false" aria-label="Orbit" data-tip="Slowly turn the galaxy: tilt it if face-on, else spin it"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5"/><path d="M8 .8 10.2 2.5 8 4.2"/></svg><span>orbit</span></button>
+    <button type="button" class="v3d-orb" id="v3-orbit" aria-pressed="false" aria-label="Orbit" data-tip="Slowly turn the cluster: tilt it if face-on, else spin it"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5"/><path d="M8 .8 10.2 2.5 8 4.2"/></svg><span>orbit</span></button>
     <button type="button" class="v3d-fsb v3d-svb" id="v3-save-stage" data-testid="v3-save-stage" aria-haspopup="dialog" aria-controls="v3-save-pop" aria-expanded="false" aria-label="Save 3D figure" data-tip="Save 3D figure or interactive snapshot"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.2v7.6M4.8 6.8 8 10l3.2-3.2M2.8 13.2h10.4"/></svg></button>
     <button type="button" class="v3d-fsb" id="v3-fs-stage" data-testid="v3-fs-stage" aria-pressed="false" aria-label="Fullscreen" data-tip="Fullscreen (Shift+F)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg></button>
-    <button type="button" class="v3d-pv" id="v3-pivot" hidden aria-label="Re-centre on the galaxy" data-tip="Orbit centre moved; return to the galaxy (C)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3"/></svg><span>re-centre</span></button>
+    <button type="button" class="v3d-pv" id="v3-pivot" hidden aria-label="Re-centre on the cluster" data-tip="Orbit centre moved; return to the cluster centre (C)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3"/></svg><span>re-centre</span></button>
     <div class="v3d-tr"><button type="button" id="v3-ctl-toggle" aria-expanded="true" aria-controls="v3-ctl" data-tip="Show or hide the 3D settings">Controls</button><button type="button" id="v3-fs-exit" data-tip="Back to the page (Esc)">Exit fullscreen</button></div>
     <div class="v3d-ov v3d-scale" aria-hidden="true"><i></i><span>100 kpc</span></div>
     <div class="v3d-ov v3d-leg" hidden><div class="ttl"></div><div class="bar"></div><div class="ticks"></div><div class="ends" hidden><span></span><span></span></div><div class="st" hidden><i></i><span></span></div><div class="off" hidden>stars off (Layers)</div><div class="gd" hidden></div></div>
@@ -570,7 +570,7 @@ async function create(app, opts = {}) {
       </div>
       <span class="k">Publication elements</span>
       <div class="v3s-checks">
-        <label><input type="checkbox" id="v3-exp-stamp" checked data-tip="Show simulation, snapshot, ID, redshift, stellar and halo mass">Galaxy info</label>
+        <label><input type="checkbox" id="v3-exp-stamp" checked data-tip="Show simulation, snapshot, cluster ID, redshift, stellar and halo mass">Cluster info</label>
         <label><input type="checkbox" id="v3-exp-cap" checked data-tip="Include centered figure caption below the plot">Figure caption</label>
         <label><input type="checkbox" id="v3-exp-leg" checked data-tip="Include vertical colour bar with LaTeX units">Vertical bar</label>
         <label><input type="checkbox" id="v3-exp-scale" checked data-tip="Include physical length scale bar">Scale bar</label>
@@ -587,8 +587,8 @@ async function create(app, opts = {}) {
   const GAS_TIP = {nH: "Hydrogen number density nH", T: "Gas temperature, nH-weighted", Z: "Gas metallicity, nH-weighted"};
   const GAS_COL = {nH: "Hydrogen column density N_H", T: "nH-weighted mean temperature along each ray", Z: "nH-weighted mean metallicity along each ray"};
   const VEL_TIP = {vlos: "Velocity along the camera ray; positive recedes from you",
-    vr: "Radial velocity about the galaxy centre; positive is outflow",
-    vphi: "Rotation about the disk normal; positive co-rotates with the disk",
+    vr: "Radial velocity about the cluster centre; positive is outflow",
+    vphi: "Rotation about the cluster principal axis; positive co-rotates",
     vmag: "Speed of the mean gas velocity in each voxel",
     sigmalos: "Velocity spread between voxels along the ray, no thermal motion"};
   const fieldTip = (x, m, u) => { if (!x.available) return x.reason || "not available";
@@ -621,7 +621,7 @@ async function create(app, opts = {}) {
       <div class="v3c-row" id="v3-weight-row" hidden><label for="v3-weight">weight</label><select id="v3-weight" data-tip="Density that weights the velocities: all gas or one ion"></select></div>
       <div class="v3c-row" id="v3-cmap-row"><label for="v3-cmap">colours</label><select id="v3-cmap" data-tip="Colour map of the field"></select></div></section>
     <section class="v3c-card" data-group="view" data-tab="view"><h2>View</h2>
-      <div class="v3c-btns presets"><button type="button" class="v3c-btn" data-p="face-on" data-tip="Look down the disk normal (F)">Face-on</button><button type="button" class="v3c-btn" data-p="edge-on" data-tip="Look at the disk from its side (E)">Edge-on</button>
+      <div class="v3c-btns presets"><button type="button" class="v3c-btn" data-p="face-on" data-tip="Look along the cluster principal axis (F)">Face-on</button><button type="button" class="v3c-btn" data-p="edge-on" data-tip="Look across the cluster midplane (E)">Edge-on</button>
         <button type="button" class="v3c-btn" data-p="sightline" data-tip="Look along the selected sightline, as its spectrum sees it (A)">Along ray</button><button type="button" class="v3c-btn" data-p="reset" data-tip="Default camera view (R)">Reset</button></div>
       <div class="v3c-row v3c-speed"><label for="v3-orbit-axis">orbit axis</label><select id="v3-orbit-axis" data-testid="v3-orbit-axis" data-tip="Axis the orbit turns around"><option value="auto">auto</option><option value="spin">rotation axis</option><option value="major">major axis</option><option value="minor">minor axis</option></select></div>
       <div class="v3c-row v3c-speed"><label for="v3-orbit-speed">orbit speed</label><input id="v3-orbit-speed" data-testid="v3-orbit-speed" type="range" min="1" max="45" step="1" value="20" data-tip="How fast the orbit turns (degrees per second)"><output id="v3-orbit-speed-o">20°/s</output></div>
@@ -629,16 +629,16 @@ async function create(app, opts = {}) {
       ${(t => `<button type="button" class="v3c-btn v3c-wide" id="v3-head" data-testid="v3-head" aria-pressed="false" data-tip="${t ? "Head, hands or tilt." : "Head steers, hands act."} Your camera video stays on your device."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 8.5V3.6a1.1 1.1 0 0 1 2.2 0V7.5M7.7 7V2.6a1.1 1.1 0 0 1 2.2 0V7.3M9.9 7.3V3.6a1.1 1.1 0 0 1 2.2 0v5.6c0 3-1.9 5.3-4.6 5.3-2 0-3.1-1-4.2-2.7L2 9.4a1.1 1.1 0 0 1 1.8-1.2l1.7 1.7"/></svg><span>Hands-free</span></button>`)(matchMedia("(pointer: coarse)").matches && !matchMedia("(any-pointer: fine)").matches)}</div>
       <div class="v3c-pair v3c-save-row"><button type="button" class="v3c-btn v3c-wide" id="v3-save-open" aria-haspopup="dialog" aria-controls="v3-save-pop" aria-expanded="false" data-tip="Save publication PNG, vector SVG or PDF, or HTML snapshot"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.2v7.6M4.8 6.8 8 10l3.2-3.2M2.8 13.2h10.4"/></svg><span>Save view</span></button>
       <button type="button" class="v3c-btn v3c-wide" id="v3-copy-link" data-tip="Copy a link to this exact 3D camera view"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M6.6 9.4 9.4 6.6"/><path d="M7.4 4.6 8.6 3.4a2.6 2.6 0 0 1 3.7 3.7l-1.2 1.2M8.6 11.4l-1.2 1.2a2.6 2.6 0 0 1-3.7-3.7l1.2-1.2"/></svg><span>Copy link</span></button></div>
-      <div class="v3c-row v3c-pvrow" id="v3-pv-row"><span class="lab">centre</span><div class="v3c-btns v3c-pvb"><button type="button" class="v3c-btn" id="v3-pv-gal" aria-pressed="true" data-tip="Orbit about the galaxy centre (C); double-click elsewhere to move">galaxy</button><button type="button" class="v3c-btn" id="v3-pv-ray" aria-pressed="false" data-tip="Orbit about the selected sightline's closest point">ray</button></div></div>
-      <details id="v3-pv-more"><summary data-tip="Type an orbit centre in kpc, galaxy box axes">kpc</summary><form class="v3tf-g v3c-pvxyz" id="v3-pv-form"><input id="v3-pv-x" type="number" step="1" min="-400" max="400" aria-label="centre x, kpc" placeholder="x" data-tip="x in kpc from the galaxy centre"><input id="v3-pv-y" type="number" step="1" min="-400" max="400" aria-label="centre y, kpc" placeholder="y" data-tip="y in kpc from the galaxy centre"><input id="v3-pv-z" type="number" step="1" min="-400" max="400" aria-label="centre z, kpc" placeholder="z" data-tip="z in kpc from the galaxy centre"><button type="submit" class="v3c-btn" data-tip="Move the orbit centre there">go</button></form></details></section>
+      <div class="v3c-row v3c-pvrow" id="v3-pv-row"><span class="lab">centre</span><div class="v3c-btns v3c-pvb"><button type="button" class="v3c-btn" id="v3-pv-gal" aria-pressed="true" data-tip="Orbit about the cluster BCG centre (C); double-click elsewhere to move">cluster</button><button type="button" class="v3c-btn" id="v3-pv-ray" aria-pressed="false" data-tip="Orbit about the selected sightline's closest point">ray</button></div></div>
+      <details id="v3-pv-more"><summary data-tip="Type an orbit centre in kpc, cluster box axes">kpc</summary><form class="v3tf-g v3c-pvxyz" id="v3-pv-form"><input id="v3-pv-x" type="number" step="1" min="-4000" max="4000" aria-label="centre x, kpc" placeholder="x" data-tip="x in kpc from the cluster centre"><input id="v3-pv-y" type="number" step="1" min="-4000" max="4000" aria-label="centre y, kpc" placeholder="y" data-tip="y in kpc from the cluster centre"><input id="v3-pv-z" type="number" step="1" min="-4000" max="4000" aria-label="centre z, kpc" placeholder="z" data-tip="z in kpc from the cluster centre"><button type="submit" class="v3c-btn" data-tip="Move the orbit centre there">go</button></form></details></section>
     <section class="v3c-card" data-group="layers" data-tab="layers"><h2>Layers</h2>
       <div class="v3c-row"><label for="v3-gasmix">gas</label><input id="v3-gasmix" type="range" min="0" max="1" step="0.05" data-tip="Strength of the gas layer; 0 hides it"><output id="v3-gasmix-o" for="v3-gasmix"></output></div>
-      <div class="v3c-row"><label class="lab"><input type="checkbox" id="v3-stars" data-tip="Starlight as a g, r, i colour composite, asinh stretched">stars</label><input id="v3-starmix" type="range" min="0" max="1" step="0.05" aria-label="star layer" data-tip="Strength of the star layer"><output id="v3-starmix-o" for="v3-starmix"></output></div>
+      <div class="v3c-row"><label class="lab"><input type="checkbox" id="v3-stars" data-tip="BCG and satellite starlight as a g, r, i colour composite, asinh stretched">stars</label><input id="v3-starmix" type="range" min="0" max="1" step="0.05" aria-label="star layer" data-tip="Strength of the star layer"><output id="v3-starmix-o" for="v3-starmix"></output></div>
       <div class="v3c-row"><label class="lab"><input type="checkbox" id="v3-dust" checked data-tip="Attenuate starlight through cold dust lanes along the ray">dust lanes</label></div>
       <div class="v3c-row"><label for="v3-dust-law">dust law</label><select id="v3-dust-law" data-tip="Dust radiative transfer law: SKIRT, Temet MW, Calzetti, CCM89, or Pei"><option value="skirt">SKIRT (THEMIS + HG)</option><option value="temet">Temet MW (Cardelli+89)</option><option value="calzetti">Calzetti+00 starburst</option><option value="cardelli">Milky Way (CCM89)</option><option value="pei">FIRE Studio (Pei+92)</option></select></div>
       <details><summary>star brightness</summary><div class="v3c-row"><label for="v3-mu0">μ₀ base</label><input id="v3-mu0" type="range" min="17" max="26" step="0.1" data-tip="Asinh stretch level, mag/arcsec²; higher shows fainter starlight"><output id="v3-mu0-o" for="v3-mu0"></output></div></details>
       <div class="v3c-row"><label for="v3-lines">lines</label><select id="v3-lines" data-tip="Which sightlines to draw in 3D"><option value="selected">selected only</option><option value="showcase">highlights + your rays</option><option value="all">all</option><option value="none">none</option></select></div>
-      <div class="v3c-sw"><label><input type="checkbox" id="v3-guides" data-tip="Draw the R200c ring and the disk normal">guides</label><label><input type="checkbox" id="v3-scale" checked data-tip="Show a length scale in kpc">scale bar</label></div></section></div>
+      <div class="v3c-sw"><label><input type="checkbox" id="v3-guides" data-tip="Draw the R200c ring and the cluster principal axis">guides</label><label><input type="checkbox" id="v3-scale" checked data-tip="Show a length scale in kpc">scale bar</label></div></section></div>
     <div class="v3c-col" data-col="b"><section class="v3c-card" data-group="mode" data-tab="view"><h2>Mode</h2>
       <div id="v3-mode" class="v3c-seg two" role="radiogroup" aria-label="Render mode"><label><input type="radio" name="v3-mode" value="integral" data-testid="v3-mode-integral" data-tip="Projected map: column or weighted mean along each ray"><span>integral</span></label>
         <label><input type="radio" name="v3-mode" value="volume" data-testid="v3-mode-volume" data-tip="Ray-marched emission and absorption through a transfer function"><span>volume</span></label></div>
@@ -697,14 +697,22 @@ async function create(app, opts = {}) {
   let movingPR = Math.min(PR * movGov.rung.scale, exactPR), movingSpv = movGov.rung.spv, movingShade = movGov.rung.shade;
   const EXACT_MS = 100;
   renderer.setPixelRatio(PR);
-  const scene = new T.Scene(), volScene = new T.Scene(), camera = new T.PerspectiveCamera(FOV, 1, manifest?.levels?.L3 ? 0.05 : 0.5, 20000);
-  const controls = new OrbitControls(camera, canvas); controls.enableDamping = false;
-  controls.minDistance = manifest?.levels?.L4 ? 0.4 : manifest?.levels?.L3 ? 1.5 : 15; controls.maxDistance = 5600;
-  controls.zoomSpeed = 1.2; controls.keys = {};
-
   /* ---- the cube mesh (local = disk frame) ---- */
   let GAS_L = ["L0", "L1", "L2", "L3", "L4"].filter(L => manifest?.levels?.[L]); if (!GAS_L.length) GAS_L = GAS_L_DEF;
   let STAR_L = ["S0", "S1", "S2", "S3", "S4"].filter(L => manifest?.levels?.[L]); if (!STAR_L.length) STAR_L = STAR_L_DEF;
+  const H0 = manifest?.levels?.L0?.half_kpc ?? 4000, boxScale = H0 / 400;
+  const half = lv => manifest?.levels?.[lv]?.half_kpc ?? ({L0: 400, L1: 100, L2: 25, L3: 6.25, L4: 1.5, S0: 400, S1: 100, S2: 25, S3: 6.25, S4: 1.5}[lv] * boxScale);
+  const finestHalf = half(GAS_L[GAS_L.length - 1]);
+  const mask0 = () => {
+    const m = manifest?.levels?.L0?.r_mask_kpc;
+    return m === null || m === undefined ? 1e9 : (Number.isFinite(m) && m > 0 ? m : (H0 === 400 ? 400 : 1e9));
+  };
+  const camNear = H0 === 400 ? (manifest?.levels?.L3 ? 0.05 : 0.5) : Math.max(1e-4, 1e-4 * finestHalf);
+  const camFar = H0 === 400 ? 20000 : Math.max(50 * H0, 20000);
+  const scene = new T.Scene(), volScene = new T.Scene(), camera = new T.PerspectiveCamera(FOV, 1, camNear, camFar);
+  const controls = new OrbitControls(camera, canvas); controls.enableDamping = false;
+  controls.minDistance = H0 === 400 ? 0.4 : 0.25 * finestHalf; controls.maxDistance = H0 === 400 ? 5600 : 14 * H0;
+  controls.zoomSpeed = 1.2; controls.keys = {};
   const nCube = manifest ? (manifest.levels.L1?.n || manifest.levels.L0?.n || 256) : 256;
   const DUST_LAWS = {
     skirt:    {vec: [0.58, 0.78, 1.15], scat: 0.45, label: "SKIRT (THEMIS + HG scattering)"},
@@ -727,7 +735,7 @@ async function create(app, opts = {}) {
       `vec3 gradAt(vec3 p, int l) {
   if (l == 0 && length(p) + 2.5 * hl(0) / uN > uMask0) return vec3(0.0);
   vec3 t = p / (2.0 * hl(l)) + 0.5; float e = 1.0 / uN, s = 0.5 * (uGasRange.y - uGasRange.x) / 254.0;
-  s *= 100.0 / hl(l);
+  s *= ${(100.0 * boxScale).toFixed(4)} / hl(l);
   float qxp = qAt(t + vec3(e, 0.0, 0.0), l), qxm = qAt(t - vec3(e, 0.0, 0.0), l);
   float qyp = qAt(t + vec3(0.0, e, 0.0), l), qym = qAt(t - vec3(0.0, e, 0.0), l);
   float qzp = qAt(t + vec3(0.0, 0.0, e), l), qzm = qAt(t - vec3(0.0, 0.0, e), l);
@@ -791,8 +799,7 @@ vec3 starAt(vec3 p, int l) {`)
       "float sm = max(star.r, max(star.g, star.b)), sm0 = max(star0.r, max(star0.g, star0.b)), occ = uStarOcc * smoothstep(uOccRange.x, uOccRange.y, max(sm, sm0)), dustT = (starOn && uDust > 0.0 && sumS0 != vec3(0.0)) ? clamp((sumS.r + sumS.g + sumS.b) / max(sumS0.r + sumS0.g + sumS0.b, 1e-5), 0.0, 1.0) : 1.0;")
     .replace("vec3 g = mix(uBg, gas, gm * (starOn ? uGasW : 1.0) * (1.0 - occ));",
       "vec3 g = mix(uBg, gas, gm * (starOn ? uGasW * dustT : 1.0) * (1.0 - occ));");
-  const half = lv => manifest?.levels?.[lv]?.half_kpc ?? {L0: 400, L1: 100, L2: 25, L3: 6.25, L4: 1.5, S0: 400, S1: 100, S2: 25, S3: 6.25, S4: 1.5}[lv];
-  U.uHalf.value.set(half("L0"), half("L1"), half("L2")); U.uMask0.value = manifest?.levels?.L0?.r_mask_kpc ?? 400;
+  U.uHalf.value.set(half("L0"), half("L1"), half("L2")); U.uMask0.value = mask0();
   U.uBg.value.set(5 / 255, 7 / 255, 11 / 255);
   const volMesh = new T.Mesh(new T.BoxGeometry(2 * half("L0"), 2 * half("L0"), 2 * half("L0")), RM.material);
   volMesh.matrixAutoUpdate = false; volMesh.matrix.makeBasis(Xv, Yv, Lv); volMesh.updateMatrixWorld(true); volMesh.renderOrder = 0; volMesh.frustumCulled = false;
@@ -956,7 +963,7 @@ vec3 starAt(vec3 p, int l) {`)
      T / Z), L1, the star level, then L2 / S2 / S0 only when the view resolves them; other fields only once selected */
   function needed(k = wanted || species) {
     const plan = viewPlan({ratio: ratios(k), hVisKpc: hVis(), mobile, stars: layer.stars && !!manifest.stars,
-      hasL3: !!manifest?.levels?.L3, hasL4: !!manifest?.levels?.L4}), keys = [];
+      hasL3: !!manifest?.levels?.L3, hasL4: !!manifest?.levels?.L4, l0HalfKpc: H0}), keys = [];
     for (const [kind, L] of plan.order) {
       if (kind === "gas") { if (!k) continue;
         /* vel3d: a velocity view needs the packed velocity cube of the level ("vel||L") and its weight field */
@@ -1071,7 +1078,7 @@ vec3 starAt(vec3 p, int l) {`)
   function freeVel() { for (const [key, it] of [...TEX]) if (key.startsWith("vel|") && !isBound(key)) { it.tex.dispose(); TEX.delete(key); } }
   function evict() {
     let total = gpuBytes(); if (total <= BUDGET) return;
-    const need = new Set(needed().keys), hv = hVis();
+    const need = new Set(needed().keys), hv = hVis() / boxScale;
     const rank = key => { const [kind, k, L] = key.split("|");
       if (kind === "gas" && k !== species && k !== wKey(species)) return 0;   // other fields first
       if (kind === "vel" && !isVel(species)) return 0;
@@ -1087,7 +1094,7 @@ vec3 starAt(vec3 p, int l) {`)
   let curWinIdx = 0;
   function calcWinIdx() {
     if (!manifest || !species) return 0;
-    const hv = hVis(), vel = isVel(species);
+    const hv = hVis() / boxScale, vel = isVel(species);
     const hasG = L => TEX.has(vel ? keyOf("vel", "", L) : keyOf("gas", species, L)) && (!vel || TEX.has(keyOf("gas", boundW, L)));
     if (GAS_L.includes("L4") && hv <= 5.5 && hasG("L4") && hasG("L3")) return 2;
     if (GAS_L.includes("L3") && hv <= 22 && hasG("L3")) return 1;
@@ -1105,7 +1112,7 @@ vec3 starAt(vec3 p, int l) {`)
     const gWin = ["L0", "L1", "L2", "L3", "L4"].slice(winIdx, winIdx + 3);
     const sWin = ["S0", "S1", "S2", "S3", "S4"].slice(winIdx, winIdx + 3);
     U.uHalf.value.set(half(gWin[0]), half(gWin[1]), half(gWin[2]));
-    U.uMask0.value = winIdx === 0 ? (manifest?.levels?.L0?.r_mask_kpc ?? 400) : 1e9;
+    U.uMask0.value = winIdx === 0 ? mask0() : 1e9;
     const now = performance.now(), fade = (slot, i, tex, ok) => { const cur = U[slot[i]].value;
       const haveVec = haveOf(slot), comp = ["x", "y", "z"][i];
       if (!ok) { U[slot[i]].value = slot === SLOT.stars || slot === SLOT.vel ? RM.empty4 : RM.empty1; haveVec[comp] = 0; FADE.delete(slot[i]); return; }
@@ -1329,7 +1336,7 @@ vec3 starAt(vec3 p, int l) {`)
   let lastCmap = null;
   function applyTf() { if (!manifest || !species) return; const s = fieldTf(species);
     U.uWin.value.set(s.lo, s.hi); U.uOpacity.value = +s.opacity; U.uMode.value = mode === "volume" ? 1 : 0; U.uKind.value = weighted(species) ? 1 : 0;
-    U.uFadeDex.value = fadeDex(species); U.uVolK.value = VOL.k; U.uVolGain.value = VOL.gain;
+    U.uFadeDex.value = fadeDex(species); U.uVolK.value = VOL.k / boxScale; U.uVolGain.value = VOL.gain;
     /* vel3d: the view, and the weight's log window: its column floor (the field's own integral low) in integral mode, its
        volume window in volume mode; the soft floor fades like the weight field's own map */
     const v = velView(species); U.uVq.value = v ? v.q : 0;
@@ -1498,7 +1505,7 @@ vec3 starAt(vec3 p, int l) {`)
     const al = `3D view, ${mode} mode${what}` +
       `; stars ${layer.stars ? "on" : "off"}; finest level ${fin || "none"}${layer.stars ? `, stars ${sfin || "none"}` : ""}` +
       `; ${LINE_IDS.length} sightlines drawn${nNoEnds ? ` (${nNoEnds} more have no stored endpoints)` : ""}${selId ? `; selected ${selId}${hasEnds(app.entry(selId)) ? "" : " (not drawn: no stored endpoints)"}` : ""}.` +
-      ` Arrow keys rotate, + and − zoom, F face-on, E edge-on, A along the selected sightline, R reset, C re-centre on the galaxy, double-click to orbit there, P pick a ray, M mode, S stars, G guides, Shift+F fullscreen.` +
+      ` Arrow keys rotate, + and − zoom, F face-on, E edge-on, A along the selected sightline, R reset, C re-centre on the cluster, double-click to orbit there, P pick a ray, M mode, S stars, G guides, Shift+F fullscreen.` +
       (offCentre(pivotArr()) ? ` Orbit centre ${pivotArr().map(fmtKpc).join(", ")} kpc.` : "");
     if (canvas.getAttribute("aria-label") !== al) canvas.setAttribute("aria-label", al); }
 
@@ -1528,7 +1535,7 @@ vec3 starAt(vec3 p, int l) {`)
     if (!acc) accK = 0;
     /* tune3: half-voxel steps for exact frames in close views (L2), so the finest grid shows no step banding; moving frames
        scale resolution, ray steps, and 2D gradient fetches adaptively with the FPS governor and freeze uFrame so dither noise never boils */
-    U.uSpv.value = th ? THUMB.spv : exact ? (hVis() < 30 ? 2.0 : 1.0) : movingSpv; U.uStarFloor.value = STAR_COMP.floor; U.uCompMode.value = STAR_COMP.mode; U.uOccRange.value.set(...[0, 1].map(i => STAR_CLOSE.occ[i] + (STAR_ZOOM.occWide[i] - STAR_CLOSE.occ[i]) * zoomW())); U.uGasW.value = STAR_CLOSE.gasW + (1 - STAR_CLOSE.gasW) * zoomW(); U.uExact.value = exact || useMovingExact ? 1 : 0;
+    U.uSpv.value = th ? THUMB.spv : exact ? (hVis() / boxScale < 30 ? 2.0 : 1.0) : movingSpv; U.uStarFloor.value = STAR_COMP.floor; U.uCompMode.value = STAR_COMP.mode; U.uOccRange.value.set(...[0, 1].map(i => STAR_CLOSE.occ[i] + (STAR_ZOOM.occWide[i] - STAR_CLOSE.occ[i]) * zoomW())); U.uGasW.value = STAR_CLOSE.gasW + (1 - STAR_CLOSE.gasW) * zoomW(); U.uExact.value = exact || useMovingExact ? 1 : 0;
     if (U.uDust) U.uDust.value = layer.dust ? 1.0 : 0.0;
     const trimGrad = !exact && !th && !benching && movingShade < 1 && U.uTFOn.value === 1;
     if (trimGrad) { keepTF2D = U.uTF2D.value; keepShade = U.uShade.value; if (movingShade <= 0) U.uTF2D.value = 0; U.uShade.value = keepShade * movingShade; }
@@ -1539,7 +1546,7 @@ vec3 starAt(vec3 p, int l) {`)
     selUniforms();
     renderer.getDrawingBufferSize(accSize); U.uPxAng.value = 2 * Math.tan(camera.fov * Math.PI / 360) / Math.max(accSize.y, 1);
     U.uLodC.value.set(species ? lodField(species) : LOD_C.gas, LOD_C.stars);
-    const dT = camera.position.distanceTo(controls.target), nearD = U.uMode.value === 0 ? 0 : Math.min(dT * 0.12, 12.0);
+    const dT = camera.position.distanceTo(controls.target), nearD = U.uMode.value === 0 ? 0 : Math.min(dT * 0.12, 12.0 * boxScale);
     U.uNear.value.set(0.35 * nearD, nearD);
     if (exact) {
       if (accRT.width !== accSize.x || accRT.height !== accSize.y) { accRT.setSize(accSize.x, accSize.y); accK = 0; }
@@ -1555,14 +1562,14 @@ vec3 starAt(vec3 p, int l) {`)
   function guideFit() {
     ring.quaternion.copy(camera.quaternion);
     const hv = hVis(), hh = hv * Math.min(camera.aspect || 1, 1);       // the smaller half-extent of the view at the target
-    const r = frame.R200c <= 0.92 * hh ? frame.R200c : [200, 100, 50, 20, 10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05].find(v => v <= 0.8 * hh) || 0.05;
+    const r = frame.R200c <= 0.92 * hh ? frame.R200c : [2000, 1000, 500, 200, 100, 50, 20, 10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05].find(v => v <= 0.8 * hh) || 0.05;
     ring.scale.setScalar(r / frame.R200c);
-    const len = Math.min(150, 0.7 * hv); arrow.setLength(len, 0.16 * len, 0.08 * len);
+    const len = Math.min(150 * boxScale, 0.7 * hv); arrow.setLength(len, 0.16 * len, 0.08 * len);
     if (r !== ringR) { ringR = r; const g = q(".v3d-leg .gd"), rTxt = r < 1 ? `${Math.round(r * 1000)} pc` : `${r} kpc`;
-      g.innerHTML = r === frame.R200c ? `<i></i>guides: ring R<sub>200c</sub> = ${Math.round(r)} kpc<br><i></i>arrow: disk normal`
-        : `<i></i>guides: ring ${rTxt} (R<sub>200c</sub> = ${Math.round(frame.R200c)} kpc is off-screen)<br><i></i>arrow: disk normal`; } }
+      g.innerHTML = r === frame.R200c ? `<i></i>guides: ring R<sub>200c</sub> = ${Math.round(r)} kpc<br><i></i>arrow: principal axis`
+        : `<i></i>guides: ring ${rTxt} (R<sub>200c</sub> = ${Math.round(frame.R200c)} kpc is off-screen)<br><i></i>arrow: principal axis`; } }
   /* tune4: 0 in close views → 1 in wide views (STAR_ZOOM) */
-  function zoomW() { const t = Math.min(1, Math.max(0, (hVis() - STAR_ZOOM.h[0]) / (STAR_ZOOM.h[1] - STAR_ZOOM.h[0]))); return t * t * (3 - 2 * t); }
+  function zoomW() { const hv = hVis() / boxScale, t = Math.min(1, Math.max(0, (hv - STAR_ZOOM.h[0]) / (STAR_ZOOM.h[1] - STAR_ZOOM.h[0]))); return t * t * (3 - 2 * t); }
   function mu0Eff() { return layer.mu0 + STAR_ZOOM.dmag[0] + (STAR_ZOOM.dmag[1] - STAR_ZOOM.dmag[0]) * zoomW(); }
   var lastMuTxt = "", scaleH = 0, scaleW = "", scaleL = 0, scaleHidden = null;   // var: legend() may run before this line is reached
   function starLegend() { const t = `stars: g, r, i asinh (Q ${layer.Q}, μ₀,eff ${mu0Eff().toFixed(1)} mag/″²)`;
@@ -1570,7 +1577,7 @@ vec3 starAt(vec3 p, int l) {`)
   function scale() {   // a round length at the orbit target's distance, in CSS px
     const sc = q(".v3d-scale"), h = scaleH || (scaleH = stage.clientHeight || 400), d = camera.position.distanceTo(controls.target);
     const pxPerKpc = h / (2 * d * Math.tan(camera.fov * Math.PI / 360));
-    let best = [0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500].find(v => v * pxPerKpc >= 60) || 500;
+    let best = [0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000].find(v => v * pxPerKpc >= 60) || 500;
     starLegend();
     if (scaleHidden !== !scaleOn) sc.hidden = scaleHidden = !scaleOn;
     const w = (best * pxPerKpc).toFixed(1) + "px"; if (w !== scaleW) sc.querySelector("i").style.width = scaleW = w;
@@ -1682,7 +1689,7 @@ vec3 starAt(vec3 p, int l) {`)
 
   /* ---- presets ---- */
   let anim = 0;
-  const DEF_D = 520;            // tune2: was 420 at 40°; at 22° the field spans about ±100 kpc (the L1 box) vertically
+  const DEF_D = H0 === 400 ? 520 : 520 * boxScale;            // tune2: scales with L0 half_kpc so ±L1 (1000 kpc for clusters) fills the initial frame
   /* tune4: the default camera keeps 60° from the disk normal but sits at azimuth 60° from xhat (was 0°): the page's default
      sightline (edge_b100_a090, along xhat 100 kpc above the disk) then projects about 83 kpc from the centre instead of
      straight through the disk, and the disk is seen from the same inclination */
@@ -1699,7 +1706,7 @@ vec3 starAt(vec3 p, int l) {`)
   }
   function setPreset(p) {
     /* ux4 pivot: face-on and edge-on turn about the current orbit centre; Reset also brings it back to the galaxy */
-    const o = new T.Vector3(), c0 = controls.target.clone(), D = Math.min(4700, Math.max(110, camera.position.distanceTo(controls.target))); clearTransient(); viewer.presetError = null;
+    const o = new T.Vector3(), c0 = controls.target.clone(), D = Math.min(4700 * boxScale, Math.max(110 * boxScale, camera.position.distanceTo(controls.target))); clearTransient(); viewer.presetError = null;
     if (p === "face-on") goTo(c0.clone().addScaledVector(Lv, D), c0, Yv.clone());
     else if (p === "edge-on") goTo(c0.clone().addScaledVector(Xv, D), c0, Lv.clone());
     else if (p === "sightline") { const e = selId && app.entry(selId);
@@ -1708,7 +1715,7 @@ vec3 starAt(vec3 p, int l) {`)
       let side = c.length() > 1 ? c.clone().normalize() : Lv.clone().sub(n.clone().multiplyScalar(Lv.dot(n)));
       if (side.length() < 1e-6) side = new T.Vector3(1, 0, 0).cross(n); side.normalize();
       let up = Lv.clone().sub(side.clone().multiplyScalar(Lv.dot(side))); if (up.length() < 1e-6) up = n.clone(); up.normalize();
-      goTo(c.clone().addScaledVector(side, Math.max(D, 1100)), c, up); }
+      goTo(c.clone().addScaledVector(side, Math.max(D, 1100 * boxScale)), c, up); }
     else goTo(DEF_DIR.clone().multiplyScalar(DEF_D), o, upFor(DEF_DIR));
     return true;
   }
@@ -1740,7 +1747,7 @@ vec3 starAt(vec3 p, int l) {`)
     for (const [i, a] of ["x", "y", "z"].entries()) { const inp = q("#v3-pv-" + a); if (document.activeElement !== inp) inp.value = off ? String(Math.round(p[i])) : ""; }
     const val = formatPivot(p);
     if (val !== pivotUrlLast) { pivotUrlLast = val;
-      if (pivotWhy) announce(off ? `Orbit centre ${p.map(x => fmtKpc(x)).join(", ")} kpc${pivotWhy === "ray" ? ", on the sightline" : ""}` : "Orbit centre back on the galaxy");
+      if (pivotWhy) announce(off ? `Orbit centre ${p.map(x => fmtKpc(x)).join(", ")} kpc${pivotWhy === "ray" ? ", on the sightline" : ""}` : "Orbit centre back on the cluster");
       try { const parts = location.search.replace(/^\?/, "").split("&").filter(x => x && !x.startsWith("pv="));
         if (val) parts.push("pv=" + val);
         const search = parts.length ? "?" + parts.join("&") : "";
@@ -1925,9 +1932,12 @@ vec3 starAt(vec3 p, int l) {`)
   const idEl = q("#v3-id");
   function idBadge() { if (!idEl) return; const g = app.config?.galaxy || G, id = (typeof app.galaxy === "function" ? app.galaxy() : null) ?? g.subhalo_id;
     idEl.hidden = id == null || typeof app.openCredits !== "function"; if (id == null) return;
-    const sim = g.sim || "TNG50-1", z = g.redshift ?? 0, fire = /^FIRE/i.test(sim);
-    idEl.querySelector(".s").textContent = sim; idEl.querySelector(".g").textContent = fire ? `Halo ${id}` : `Subhalo ${id}`; idEl.querySelector(".z").textContent = `z = ${z}`;
-    idEl.setAttribute("aria-label", `${sim} ${fire ? "halo" : "subhalo"} ${id} at redshift ${z}, data credits`); }
+    const sim = g.sim || "TNG-Cluster", z = g.redshift ?? 0, fire = /^FIRE/i.test(sim);
+    const isCl = /^(tng-?cluster|simba-?100|tng300)/i.test(sim) || /^(tngc_|simba100_|tng300_)/i.test(String(id));
+    const noun = isCl ? "Cluster" : fire ? "Halo" : "Subhalo";
+    const sid = String(id).replace(/^tngc_/i, "").replace(/^simba100_c(\d+)_(h\d+)$/i, "C$1 ($2)").replace(/^tng300_sub/i, "");
+    idEl.querySelector(".s").textContent = sim; idEl.querySelector(".g").textContent = `${noun} ${sid}`; idEl.querySelector(".z").textContent = `z = ${z}`;
+    idEl.setAttribute("aria-label", `${sim} ${noun.toLowerCase()} ${sid} at redshift ${z}, data credits`); }
   idEl?.addEventListener("click", ev => { ev.stopPropagation(); app.openCredits?.(idEl); });
   idEl?.addEventListener("pointerdown", ev => ev.stopPropagation());
   const onGal = () => idBadge(); addEventListener("tng:galaxy", onGal); idBadge();
@@ -1938,7 +1948,7 @@ vec3 starAt(vec3 p, int l) {`)
   /* ux4 pivot API: viewer.pivot -> [x, y, z] kpc; setPivot([x, y, z] | "galaxy" | "ray") -> bool; pickPivot(x, y) -> Vector3 | null
      (CSS px in the canvas, no move) */
   Object.defineProperty(viewer, "pivot", {get: () => pivotArr().map(r1), enumerable: true});
-  Object.assign(viewer, {setPivot: p => (p === "galaxy" ? recentre() : p === "ray" ? pivotToRay() : Array.isArray(p) && p.length === 3 && p.every(Number.isFinite) ? pivotTo(p, "api") : false),
+  Object.assign(viewer, {setPivot: p => (p === "galaxy" || p === "cluster" ? recentre() : p === "ray" ? pivotToRay() : Array.isArray(p) && p.length === 3 && p.every(Number.isFinite) ? pivotTo(p, "api") : false),
     recentre, pickPivot: (x, y) => pickPivot(x, y)});
 
   /* ---- 3D save, publication export & camera deep-link ---- */
@@ -2133,8 +2143,8 @@ vec3 starAt(vec3 p, int l) {`)
   }
   const orbitAxisVec = () => (orbitAxisNow ||= pickOrbitAxis());
   /* the orbit button's tooltip names what the orbit will do (no key letters in the text; the key list has O) */
-  const ORBIT_TIPS = {auto: "Slowly turn the galaxy: tilt it if face-on, else spin it", spin: "Slowly spin the galaxy around its rotation axis",
-    major: "Slowly tilt the galaxy around its major axis", minor: "Slowly rock the galaxy around its minor axis"};
+  const ORBIT_TIPS = {auto: "Slowly turn the cluster: tilt it if face-on, else spin it", spin: "Slowly spin the cluster around its principal axis",
+    major: "Slowly tilt the cluster around its major axis", minor: "Slowly rock the cluster around its minor axis"};
   function orbitTip() { const b = q("#v3-orbit"); if (b) b.dataset.tip = fullOrbit ? "Stop the orbit" : ORBIT_TIPS[orbitAxis] || ORBIT_TIPS.auto; }
   function setOrbit(on) { fullOrbit = !!on; orbitAxisNow = null; const b = q("#v3-orbit"); if (b) { b.setAttribute("aria-pressed", String(fullOrbit)); b.querySelector("span").textContent = fullOrbit ? "stop" : "orbit";
       b.querySelector("svg").innerHTML = fullOrbit ? STOP_SVG : ORBIT_SVG; b.setAttribute("aria-label", fullOrbit ? "Stop orbit" : "Orbit"); orbitTip(); }

@@ -13,10 +13,10 @@ const near = (a, b, e = 1e-6) => !!a && !!b && a.length === b.length && a.every(
 const J = x => JSON.stringify(x);
 
 /* ---- URL value ---- */
-check(PIVOT.eps > 0 && PIVOT.eps <= 1 && PIVOT.max === 400, `PIVOT ${J(PIVOT)}`);
+check(PIVOT.eps > 0 && PIVOT.eps <= 1 && PIVOT.max === 4000, `PIVOT ${J(PIVOT)}`);
 check(near(parsePivot("12.34,-5,0"), [12.3, -5, 0]), `parse "12.34,-5,0" -> ${J(parsePivot("12.34,-5,0"))} (0.1 kpc)`);
 check(near(parsePivot(" 1 , 2 , 3 "), [1, 2, 3]), "parse tolerates spaces");
-check(near(parsePivot("900,-900,10"), [400, -400, 10]), `parse clamps to ±${PIVOT.max} kpc: ${J(parsePivot("900,-900,10"))}`);
+check(near(parsePivot("9000,-9000,10"), [4000, -4000, 10]), `parse clamps to ±${PIVOT.max} kpc: ${J(parsePivot("9000,-9000,10"))}`);
 for (const bad of [null, undefined, "", "1,2", "1,2,3,4", "a,b,c", "1,,3", "NaN,1,1", "Infinity,0,0"])
   check(parsePivot(bad) === null, `parse ${J(bad)} -> null`);
 check(parsePivot("0,0,0") === null && parsePivot("0.1,0.1,0") === null, "parse at the centre (within eps) -> null");

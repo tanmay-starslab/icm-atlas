@@ -20,8 +20,8 @@ export function makeRegistry(cfg) {
   const d = cfg.defaults || {};
   const R = {}; for (const b of BAND_KEYS) { const r = (d.R || {})[b] || BANDS[b].R.pair || [BANDS[b].R.default, BANDS[b].R.default]; R[b] = [r[0], r[1] ?? r[0]]; }
   const ions = (d.ions || []).filter(k => ION[k]);
-  const DEF = {id: d.id || null, ions: ions.length ? ions : KEYS.slice(0, 5), layout: LAYOUTS.includes(d.layout) ? d.layout : PAGE_LAYOUT,
-    R, sn: (d.sn || SNR.pair).slice(0, 2), vc: +d.vc || 0, vhw: +d.vhw || 400, seed: +d.seed || 0, intr: !!d.intrinsic, fit: !!d.fit, tab: "spectra"};
+  const DEF = {id: d.id || null, ions: ions.length ? ions : ["OVII", "NeVIII", "OVI", "NV", "HI"].filter(k => ION[k]), layout: LAYOUTS.includes(d.layout) ? d.layout : PAGE_LAYOUT,
+    R, sn: (d.sn || SNR.pair).slice(0, 2), vc: +d.vc || 0, vhw: +(d.vhw ?? d.vhw_kms) || 1000, seed: +d.seed || 0, intr: !!d.intrinsic, fit: !!d.fit, tab: "spectra"};
   return {IONS, ION, KEYS, BANDS, BAND_KEYS, SNR, DEF};
 }
 export const cloneState = s => JSON.parse(JSON.stringify(s));
@@ -162,7 +162,7 @@ export function parseHash(hash, reg, S) {
   const nums = x => String(x || "").split(",").map(t => t.trim()).filter(t => t !== "").map(Number).filter(Number.isFinite);
   const id = h.get("id"); if (id && ID_RE.test(id)) out.id = id;
   if (h.has("ions")) { const l = [...new Set(h.get("ions").split(",").map(s => s.trim()).filter(k => reg.ION[k]))];
-    out.ions = l.length ? reg.KEYS.filter(k => l.includes(k)) : reg.DEF.ions.slice(); }
+    out.ions = l.length ? l : reg.DEF.ions.slice(); }
   if (LAYOUTS.includes(h.get("lay"))) out.layout = h.get("lay");
   const Rs = h.get("R");
   if (Rs && Rs.includes(":")) {
@@ -214,7 +214,7 @@ export function instrumentPatch(o, reg, S, vmaxFor) {
     if (!Array.isArray(o.ions) || !o.ions.length) throw new RangeError(`ions: must be a non-empty list of ${reg.KEYS.join(", ")}`);
     for (const k of o.ions) if (!reg.ION[k]) throw new RangeError(`ions: unknown ion ${k} (allowed: ${reg.KEYS.join(", ")})`);
     if (new Set(o.ions).size !== o.ions.length) throw new RangeError("ions: each ion at most once");
-    P.ions = reg.KEYS.filter(k => o.ions.includes(k));     // registry order
+    P.ions = o.ions.filter(k => reg.ION[k]);
   }
   const vmax = vmaxFor(P.ions || S.ions);
   if (o.vhw !== undefined && !(isInt(o.vhw) && o.vhw >= VHW_MIN && o.vhw <= vmax)) throw new RangeError(`vhw: must be an integer from ${VHW_MIN} to ${Math.round(vmax)}`);
