@@ -328,11 +328,52 @@ export function nearestSightline(entries, cur, rhoCur, R200c) {
   }
   return best;
 }
-/* a galaxy's opening sightline when nothing is carried over: a random-orientation ray near 0.25 R200c (mid CGM, not the
-   b ~ 0 disk-centre rays that sort first), the best ranked of the closest ones */
+/* a galaxy's opening sightline when nothing is carried over: prioritizes showcase multi-ion sightlines with strong
+   X-ray + UV absorption (OVII + NeVIII + OVI + NV + HI + CIV), falling back to a random-orientation ray near 0.25 R200c */
+const MULTI_ION_KEYS = ["OVII", "NeVIII", "OVI", "NV", "HI", "CIV"];
+function multiIonRichness(e) {
+  if (!e || typeof e !== "object") return 0;
+  let total = 0;
+  const ewObj = (e.ew && typeof e.ew === "object") ? e.ew : null;
+  const ionsObj = (e.ions && typeof e.ions === "object") ? e.ions : null;
+  const lognObj = (e.logN && typeof e.logN === "object") ? e.logN : null;
+  for (const k of MULTI_ION_KEYS) {
+    const ik = ionsObj && ionsObj[k] && typeof ionsObj[k] === "object" ? ionsObj[k] : null;
+    const ewVal = ewObj && Number.isFinite(+ewObj[k]) ? Math.max(0, +ewObj[k]) : (Number.isFinite(+e[`${k}_ew`]) ? Math.max(0, +e[`${k}_ew`]) : 0);
+    const mf = ik && Number.isFinite(+ik.min_flux) ? +ik.min_flux : NaN;
+    const depthVal = Number.isFinite(+e[`${k}_depth`]) ? Math.max(0, +e[`${k}_depth`]) : (Number.isFinite(mf) ? Math.max(0, 1 - mf) : 0);
+    const scoreVal = Number.isFinite(+e[`${k}_score`]) ? Math.max(0, +e[`${k}_score`]) : (ik && Number.isFinite(+ik.n_comp) ? 0.35 * Math.min(4, +ik.n_comp) * depthVal : 0);
+    const rawLogn = lognObj && Number.isFinite(+lognObj[k]) ? +lognObj[k] : +e[`logN_${k}`];
+    const lognVal = Number.isFinite(rawLogn) && rawLogn > 13.0 ? Math.min(3.0, (rawLogn - 13.0) * 0.25) : 0;
+    const showBonus = (e[`${k}_showcase`] === true || (ik && ik.showcase === true)) ? 2.0 : 0;
+    const wIon = (k === "OVII" || k === "NeVIII" || k === "OVI") ? 1.5 : 1.0;
+    total += wIon * (ewVal + 3.0 * depthVal + scoreVal + lognVal + showBonus);
+  }
+  return total;
+}
 export function defaultSightline(entries, R200c, rho = 0.25) {
   const R = +R200c, lib = (entries || []).filter(e => e && e.orientation && e.orientation !== "custom" && e.source !== "generated" && Number.isFinite(+e.b_kpc));
   if (!lib.length || !(R > 0)) return null;
+  const hasRichMetrics = lib.some(e => e.showcase === true || e.star === true || (+e.n_showcase_ions || 0) > 0 || multiIonRichness(e) > 0);
+  if (hasRichMetrics) {
+    const oviiDepth = e => {
+      if (Number.isFinite(+e.OVII_depth)) return +e.OVII_depth;
+      const mf = e.ions && e.ions.OVII && Number.isFinite(+e.ions.OVII.min_flux) ? +e.ions.OVII.min_flux : 1;
+      return Math.max(0, 1 - mf);
+    };
+    const showcasePool = lib.filter(e => e.showcase === true || e.star === true || (+e.n_showcase_ions || 0) >= 2 || oviiDepth(e) >= 0.35);
+    const poolRich = showcasePool.length ? showcasePool : lib;
+    return poolRich.slice().sort((a, b) => {
+      const sa = (a.showcase === true || (+a.n_showcase_ions || 0) >= 2) ? 1 : 0;
+      const sb = (b.showcase === true || (+b.n_showcase_ions || 0) >= 2) ? 1 : 0;
+      if (sa !== sb) return sb - sa;
+      const ma = multiIonRichness(a), mb = multiIonRichness(b);
+      if (Math.abs(mb - ma) > 1e-6) return mb - ma;
+      const ra = Number.isFinite(+a.rank) && a.rank !== null ? +a.rank : 1e9;
+      const rb = Number.isFinite(+b.rank) && b.rank !== null ? +b.rank : 1e9;
+      return ra - rb || (String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0);
+    })[0];
+  }
   const pref = lib.filter(e => e.orientation === "random"), pool = pref.length ? pref : lib;
   const key = e => [Math.round(Math.abs(+e.b_kpc / R - rho) / 0.025), Number.isFinite(+e.rank) && e.rank !== null ? +e.rank : 1e9, String(e.id)];
   return pool.slice().sort((a, b) => { const x = key(a), y = key(b); return x[0] - y[0] || x[1] - y[1] || (x[2] < y[2] ? -1 : x[2] > y[2] ? 1 : 0); })[0];

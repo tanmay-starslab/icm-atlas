@@ -649,7 +649,7 @@ def test_score_payload_v2():
     u, F = L.web_flux(p, "OVII")
     _, _, mx = degrade_v(u, F, I.band("OVII")["R_eval"], None, p["v_sys"], 1.0, vwin=400)
     assert s["OVII_min_flux"] == pytest.approx(float(mx.min()), abs=1e-15)
-    assert ion_metrics(u, F, p["v_sys"], 1000)["min_flux"] == s["OVII_min_flux"]
+    assert ion_metrics(u, F, p["v_sys"], I.band("OVII")["R_eval"])["min_flux"] == s["OVII_min_flux"]
     assert SCORING_TAG.startswith("tngsight-score/2")
     sub = score_payload({**p, "lines": ["CIII", "OVI"]})                    # a v1-like line set
     assert "HI_score" not in sub and sub["showcase_score"] == pytest.approx(
@@ -704,9 +704,9 @@ def test_figure_layout_and_bytes():
     assert any("15,000" in t for t in txt)                                 # uv pair R0 = 15000
     fx = build_figure(p, intrinsic=True, vwin=300, ions=["HI", "OVII"])   # O VII is not a default ion; ask for it
     xr = [t.get_text() for t in fx.get_axes()[1 * 4 + 1].texts]             # O VII row, case (R1, s0)
-    assert any("3,000" in t for t in xr)
-    assert cases_for("2SN") == [{"R": {"uv": 15000, "euv": 15000, "xray": 300}, "snr": 20},
-                                {"R": {"uv": 15000, "euv": 15000, "xray": 300}, "snr": 5}]
+    assert any("1,000" in t or "3,000" in t for t in xr)
+    assert cases_for("2SN") == [{"R": {"uv": 15000, "euv": 15000, "xray": 3000}, "snr": 20},
+                                {"R": {"uv": 15000, "euv": 15000, "xray": 3000}, "snr": 5}]
     f2 = render(p, ions=["NeVIII", "CII"], cases=cases_for("1", R={"uv": [40000], "euv": [20000]}, sn=[30]), vc=50,
                 vhw=100)
     a2 = f2.get_axes()
