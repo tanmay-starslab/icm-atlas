@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-tng.txt
+      - name: Install
+        run: pip install -r requirements.txt -r requirements-tng.txt
+      - name: pytest
+        env:
+          MPLBACKEND: Agg
+        run: python -m pytest tests -q -p no:cacheprovider
+
+  js:
+    name: JS tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-tng.txt
+      - name: Python deps for the parity fixtures
+        run: pip install -r requirements.txt -r requirements-tng.txt pillow
+      - name: run_all (browser tests skip themselves; H0 uses the runner's Chrome for its DOM part)
+        env:
+          PYTHON: python
+          TNG_EDGE: google-chrome
+        run: node tests/js/run_all.mjs
+
+  site:
+    name: Site build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Build dist/
+        run: node scripts/build_site.mjs
+      - name: Key pages exist
+        run: |
+          for f in index.html learn/how-a-spectrum-is-made/index.html requirements/index.html robots.txt sitemap.xml; do
+            test -s "dist/$f" || { echo "missing dist/$f"; exit 1; }
+          done
