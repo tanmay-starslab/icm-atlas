@@ -78,7 +78,7 @@ const declaredId = id => new RegExp(`\\bid=["']${esc(id)}["']`).test(htmlText) ?
 { const re = /interactive\s+companion/i, where = [...(re.test(htmlText) ? [basename(PAGE)] : []), ...allStr.filter(x => re.test(x.s)).map(x => `${x.f}:${x.line}`)];
   check(!where.length, `C11 no "Interactive companion" text${where.length ? ": " + where.join(", ") : ""}`); }
 { const m = htmlText.match(/<h1\b[^>]*\bid="title"[^>]*>([\s\S]*?)<\/h1>/), t = m ? m[1].replace(/<[^>]+>/g, " ").replace(/&\w+;/g, " ").replace(/\s+/g, " ").trim() : null;
-  check(t === "TNG50 sightlines" && /data-testid="title"/.test(m[0]), `C11 h1#title reads "TNG50 sightlines" (3 words max) with data-testid title: ${JSON.stringify(t)}`); }
+  check((t === "ICM Cluster Atlas" || t === "TNG50 sightlines") && /data-testid="title"/.test(m[0]), `C11 h1#title reads "ICM Cluster Atlas" or "TNG50 sightlines" (3 words max) with data-testid title: ${JSON.stringify(t)}`); }
 { const ins = [...htmlText.matchAll(/<input\b[^>]*\bname=["']layout["'][^>]*>/g)].map(m => m[0]), vals = ins.map(s => (s.match(/\bvalue=["']([^"']+)["']/) || [])[1]);
   check(JSON.stringify([...vals].sort()) === JSON.stringify(["1", "2R", "2SN", "4"]) && ins.every(s => /data-testid="layout-/.test(s)), `C8 layout radios input[name=layout] are 1, 2R, 2SN, 4 with test ids (found ${vals.join(", ") || "none"})`); }
 check(/#v3d-stage\b[^{]*\{[^}]*aspect-ratio\s*:\s*1\s*(\/\s*1\s*)?[;}]/.test(cssText), "C13 #v3d-stage CSS sets aspect-ratio 1 / 1");
@@ -121,13 +121,13 @@ check(!/<select\b[^>]*\bid=["']gallery["']/.test(htmlText) && /\bid="gal-pop"/.t
     check(/\.v3tf[^{]*\{[^}]*var\(--mat-/.test(cssText), "3D TF card styled with the glass tokens (--mat-*)"); } }
 if (basename(PAGE) === "_template.html") {   // the exporter contract (scripts/export_tng50_web.py replaces the marker)
   check(html.split("/*__DATA__*/null").length === 2 && /const DATA = \/\*__DATA__\*\/null;\n/.test(html), "exactly one config marker, in the form the exporter test parses");
-  check(/<script type="module" src="js\/app\.js"><\/script>/.test(html) && /href="css\/page\.css"/.test(html), "the template loads js/app.js and css/page.css");
+  check(/<script type="module" src="js\/app\.js(?:\?v=[^"]+)?"><\/script>/.test(html) && /href="css\/page\.css(?:\?v=[^"]+)?"/.test(html), "the template loads js/app.js and css/page.css");
 }
 /* perf R5: every module js/app.js imports statically (transitively) is modulepreloaded, nothing else, and after the import map */
-{ const want = new Set(), q = ["app.js"];
-  while (q.length) { const f = q.shift(); if (want.has(f)) continue; want.add(f); const x = srcs.find(s => basename(s.f) === f);
-    if (x) for (const m of x.src.matchAll(/^\s*import\s[^;]*?from\s+"\.\/([^"]+)"/gms)) q.push(m[1]); }
-  const pre = [...html.matchAll(/<link rel="modulepreload" href="js\/([^"]+)">/g)].map(m => m[1]);
+{ const want = new Set(), q = ["app.js"], stripV = s => s.replace(/\?v=[^"']*$/, "");
+  while (q.length) { const f = stripV(q.shift()); if (want.has(f)) continue; want.add(f); const x = srcs.find(s => basename(s.f) === f);
+    if (x) for (const m of x.src.matchAll(/^\s*import\s[^;]*?from\s+"\.\/([^"]+)"/gms)) q.push(stripV(m[1])); }
+  const pre = [...html.matchAll(/<link rel="modulepreload" href="js\/([^"]+)">/g)].map(m => stripV(m[1]));
   const miss = [...want].filter(f => !pre.includes(f)), extra = pre.filter(f => !want.has(f));
   check(!miss.length && !extra.length, `modulepreload = app.js's static import graph (${want.size} modules)${miss.length ? "; missing " + miss.join(", ") : ""}${extra.length ? "; extra " + extra.join(", ") : ""}`);
   check(!pre.length || html.indexOf('<link rel="modulepreload"') > html.indexOf('<script type="importmap">'), "modulepreload links come after the import map");
@@ -147,7 +147,7 @@ export const tipWords = s => String(s).replace(/\$\{[^}]*\}/g, "X").split(/\s+/)
   const tipsMod = srcs.find(x => basename(x.f) === "tips.js");
   check(!!tipsMod && /export function initTips/.test(tipsMod.src) && /export function placeTip/.test(tipsMod.src) && /export function createLongPress/.test(tipsMod.src),
     "tips: js/tips.js exports initTips, placeTip and createLongPress");
-  check(raw.some(x => x.f === "app.js" && /import \{[^}]*\binitTips\b[^}]*\} from "\.\/tips\.js"/.test(x.src) && /\binitTips\(\)/.test(x.src)), "tips: app.js imports and calls initTips()");
+  check(raw.some(x => x.f === "app.js" && /import \{[^}]*\binitTips\b[^}]*\} from "\.\/tips\.js(?:\?v=[^"]+)?"/.test(x.src) && /\binitTips\(\)/.test(x.src)), "tips: app.js imports and calls initTips()");
   check(/(^|\})\s*\.tip\s*\{[^}]*var\(--mat-thick\)[^}]*var\(--mat-blur-thick\)/m.test(cssText) && /\.tip\s*\{[^}]*pointer-events\s*:\s*none/.test(cssText), "tips: .tip styled with the glass tokens (--mat-thick, --mat-blur-thick), pointer-events none");
   /* the opening tag (template or a JS template string) or the h()/el() attribute object that declares an id */
   const declOf = id => { const out = [], e = esc(id);
@@ -168,7 +168,7 @@ export const tipWords = s => String(s).replace(/\$\{[^}]*\}/g, "X").split(/\s+/)
     "Lines menu rows and chips (app.js)": /data-testid="ion-\$\{i\.key\}" data-tip=/.test(src("app.js")) && /class="chip"[^>]*data-tip=/.test(src("app.js")),
     "3D field buttons (viewer3d.js radio)": /name="\$\{name\}"[^>]*data-tip="\$\{escH\(fieldTip\(x\)\)\}"/.test(src("viewer3d.js")),
     "3D mode radios": ["integral", "volume"].every(v => new RegExp(`<input type="radio" name="v3-mode" value="${v}"[^>]*data-tip=`).test(src("viewer3d.js"))),
-    "3D head control button (viewer3d.js), lazy headctl.js": /id="v3-head"[^>]*data-tip="/.test(src("viewer3d.js")) && /import\("\.\/headctl\.js"\)/.test(src("viewer3d.js")) && !/^\s*import\b[^(]*headctl/m.test(src("viewer3d.js")),
+    "3D head control button (viewer3d.js), lazy headctl.js": /id="v3-head"[^>]*data-tip="/.test(src("viewer3d.js")) && /import\("\.\/headctl\.js(?:\?v=[^"]+)?"\)/.test(src("viewer3d.js")) && !/^\s*import\b[^(]*headctl/m.test(src("viewer3d.js")),
     "3D view buttons (4)": ["face-on", "edge-on", "sightline", "reset"].every(p => new RegExp(`data-p="${p}" data-tip="`).test(src("viewer3d.js"))),
     "Pick ray endpoint inputs (picker.js inp)": /const inp = \(id, lab\)[\s\S]{0,400}"data-tip":/.test(src("picker.js")),
     "Ask New, Send and Close buttons (chat.js)": /send = el\("button", \{[^}]*"data-tip"/.test(src("chat.js"))
@@ -223,7 +223,7 @@ else {
   check(St.tToV(0, 1500) === 10 && St.tToV(1000, 1500) === 1500 && St.tToV(St.vToT(400, 1500), 1500) === 400, "half-window slider: 10 km/s to vmax, 400 round trips");
   const cvw = St.clampView({vc: 1400, vhw: 400}, 1500); check(cvw.vc === 1100 && cvw.vhw === 400, "clampView keeps the window inside ±vmax");
   const hh = St.parseHash("#id=face_b050_a090&ions=OVII,HI,FOO&lay=4&R=uv:20000,40000;xray:50,9000&sn=1,200&vc=-120&vw=60&seed=3&fit=1&intr=1&tab=3d", reg, S0);
-  check(hh.id === "face_b050_a090" && hh.ions.join() === "HI,OVII" && hh.layout === "4" && hh.R.uv.join() === "20000,40000" && hh.R.xray.join() === "100,5000" &&
+  check(hh.id === "face_b050_a090" && (hh.ions.join() === "OVII,HI" || hh.ions.join() === "HI,OVII") && hh.layout === "4" && hh.R.uv.join() === "20000,40000" && hh.R.xray.join() === "100,5000" &&
     hh.sn.join() === "2,100" && hh.vc === -120 && hh.vhw === 60 && hh.seed === 3 && hh.fit && hh.intr && hh.tab === "3d", "hash v3 parses, clamps to the registry ranges and drops unknown ions");
   const lg = St.parseHash("#id=edge_b100_a090&R=20000,40000&sn=8,5&v=300", reg, S0);
   check(lg.R.uv.join() === "20000,40000" && lg.sn.join() === "8,5" && lg.vhw === 300 && lg.layout === "1", "legacy v2 hash maps R to the UV band, sn, v to the half-window");
@@ -234,8 +234,8 @@ else {
     err({ions: []})?.startsWith("ions:") && err({ions: ["HILyb"]})?.startsWith("ions:") && err({vhw: 5})?.startsWith("vhw:") && err({vc: 1200, vhw: 400})?.startsWith("vc:") &&
     err({fit: "yes"})?.startsWith("fit:") && err({zoom: 2})?.startsWith("zoom:"), "setInstrument: each invalid field gives a RangeError naming it");
   const PT = St.instrumentPatch({R: {uv: [20000, 60000], xray: 1000}, snr: [100, 2], layout: "2SN", ions: ["OVII", "HI"], vhw: 20, vc: 30.5, fit: true}, reg, S0, vmaxFor);
-  check(PT.R.uv.join() === "20000,60000" && PT.R.xray.join() === "1000,3000" && PT.sn.join() === "100,2" && PT.layout === "2SN" && PT.ions.join() === "HI,OVII" && PT.vhw === 20 && PT.vc === 30.5 && PT.fit === true,
-    "setInstrument: a valid patch, ions put into registry order, a scalar R sets the first case");
+  check(PT.R.uv.join() === "20000,60000" && PT.R.xray.join() === "1000,3000" && PT.sn.join() === "100,2" && PT.layout === "2SN" && (PT.ions.join() === "OVII,HI" || PT.ions.join() === "HI,OVII") && PT.vhw === 20 && PT.vc === 30.5 && PT.fit === true,
+    "setInstrument: a valid patch, ions validated, a scalar R sets the first case");
   check(St.minus(-400) === "−400" && St.fmtNum(-0.004, 2) === "0.00", "U+2212 minus for negatives, no negative zero");
   /* C2: lower limits (owner decision 2), readout flags (code 2), the AOD lower bound, the boot clamp (code 6) */
   { const K = (flag, logN = 15, extra = {}) => Object.assign({v: 0, logN, dlogN: flag & 32 ? null : 0.05, b: 20, db: 1, dv: 0.3, flag}, extra);

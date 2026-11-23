@@ -406,7 +406,7 @@ const frameLog = (eng, ctx, t) => { ctx.__log.length = 0; eng.seek(t); return ct
   for (const st of DOC.steps.filter(s => s.handoff)) {
     const h = ST.handoffHash(st.handoff, S, {defaultG: 488530});
     const back = STATE.parseHash("#" + h, reg, base), want = ST.handoffState(st.handoff, S);
-    eq([back.id, back.ions, back.layout, back.R.uv, back.sn, back.seed, back.fit], [want.id, reg.KEYS.filter(k => want.ions.includes(k)), want.layout, want.R.uv, want.sn, want.seed, want.fit],
+    eq([back.id, back.ions, back.layout, back.R.uv, back.sn, back.seed, back.fit], [want.id, want.ions.filter(k => reg.ION[k]), want.layout, want.R.uv, want.sn, want.seed, want.fit],
       `hand-off ${st.id} round-trips id, ions, layout, R, S/N, seed, fit through parseHash`);
     ok(h.startsWith("id=") && h.endsWith("&from=story"), `hand-off ${st.id} is formatHash output plus &from=story`);
   }
