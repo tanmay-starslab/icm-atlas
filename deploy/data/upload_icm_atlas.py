@@ -37,14 +37,49 @@ VP.STAR_LEVELS = dict(ICM_STAR_LEVELS)
 VP.R_MASK_KPC = {}
 
 SIMBA_ROOT = Path("/scratch/tsingh65/cgm_work/data/icm_clusters")
+TNG300_ROOT = Path("/scratch/tsingh65/cgm_work/data/tng300_z0")
 TNGC_ROOT = Path("/scratch/tsingh65/cgm_work/data/tng_cluster/gal")
+TNGC_TARGETS_JSON = Path("/scratch/tsingh65/cgm_work/data/tng_cluster/tng_cluster_352_targets.json")
 
-WEB_REPO = "tanmay-starslab/icm-atlas-web-0"
-VIZ3D_REPO = "tanmay-starslab/icm-atlas-3d-0"
+WEB_REPOS = {
+    0: "tanmay-starslab/icm-atlas-web-0",
+    1: "tanmay-starslab/icm-atlas-web-1",
+}
+VIZ3D_REPOS = {
+    0: "tanmay-starslab/icm-atlas-3d-0",
+    1: "tanmay-starslab/icm-atlas-3d-1",
+}
 
 
-def dataset_readme(repo: str, simba_ids: list[str], tngc_ids: list[str], total_bytes: int) -> bytes:
-    all_ids = simba_ids + tngc_ids
+def load_shard0_tngc_set() -> set[str]:
+    """Keep the first 160 TNG-Cluster targets (indices 0..159) + all UPLOADED_TNGC in shard 0,
+    and place the remaining TNG-Cluster targets in shard 1 so each repo stays <95,000 files."""
+    already_in_0 = {
+        "tngc_h14258311", "tngc_h14300805", "tngc_h14346919", "tngc_h14397702",
+        "tngc_h14441698", "tngc_h14486018", "tngc_h14528100", "tngc_h14579813",
+        "tngc_h14859514", "tngc_h14940417", "tngc_h14985016", "tngc_h15031462",
+        "tngc_h15087132", "tngc_h15125179", "tngc_h15172951", "tngc_h15214679",
+        "tngc_h15264704", "tngc_h15304907", "tngc_h15348580", "tngc_h15386285",
+        "tngc_h15428207", "tngc_h15465516", "tngc_h15500142", "tngc_h15543062",
+    }
+    if TNGC_TARGETS_JSON.is_file():
+        targets = json.loads(TNGC_TARGETS_JSON.read_text())
+        for t in targets[:136]:
+            already_in_0.add(str(t["cluster_id"]))
+    return already_in_0
+
+
+SHARD0_TNGC_IDS = load_shard0_tngc_set()
+
+
+def cluster_shard(cid: str, sim_kind: str) -> int:
+    if sim_kind in ("SIMBA-100", "TNG300-1"):
+        return 0
+    return 0 if cid in SHARD0_TNGC_IDS else 1
+
+
+def dataset_readme(repo: str, simba_ids: list[str], tng300_ids: list[str], tngc_ids: list[str], total_bytes: int) -> bytes:
+    all_ids = simba_ids + tng300_ids + tngc_ids
     meta = (
         "---\n"
         "license: other\n"
@@ -60,8 +95,10 @@ Interactive 5-level 3D WebGL2 volumetric cubes ($\\pm 4\\,\\text{{Mpc}}$ down to
 ## Clusters Hosted in This Pack ({len(all_ids)} clusters, {total_bytes / 1e9:.2f} GB)
 
 1. **`SIMBA-100` Massive Galaxy Clusters ($z = 0$, {len(simba_ids)} clusters, $\\pm 4\\,\\text{{Mpc}}$):**
-   `{', '.join(simba_ids)}`
-2. **`TNG-Cluster` Massive Zoom-In Galaxy Clusters ($z = 0$, {len(tngc_ids)} clusters, $\\pm 4\\,\\text{{Mpc}}$):**
+   `{', '.join(simba_ids) if simba_ids else 'hosted in shard 0'}`
+2. **`TNG300-1` Massive Galaxy Clusters & Rich Groups ($z = 0$, {len(tng300_ids)} clusters):**
+   `{', '.join(tng300_ids) if tng300_ids else 'hosted in shard 0'}`
+3. **`TNG-Cluster` Massive Zoom-In Galaxy Clusters ($z = 0$, {len(tngc_ids)} clusters, $\\pm 4\\,\\text{{Mpc}}$):**
    `{', '.join(tngc_ids)}`
 
 ## Data Terms & Citations
@@ -76,18 +113,26 @@ MIT License — https://github.com/tanmay-starslab/icm-atlas
 
 
 def collect_completed_clusters() -> list[tuple[str, Path, str]]:
-    """Return [(cid, cluster_dir, sim_kind)] for all completed SIMBA-100 and TNG-Cluster bundles."""
+    """Return [(cid, cluster_dir, sim_kind)] for all completed SIMBA-100, TNG300-1, and TNG-Cluster bundles."""
     out = []
-    for d in sorted(SIMBA_ROOT.iterdir()):
-        if not d.is_dir() or not d.name.startswith("simba100_c"):
-            continue
-        if (d / "viz" / "manifest_v2.json").is_file() and (d / "web" / "catalog.json").is_file():
-            out.append((d.name, d, "SIMBA-100"))
-    for d in sorted(TNGC_ROOT.iterdir()):
-        if not d.is_dir() or not d.name.startswith("tngc_h"):
-            continue
-        if (d / "DONE.cubes").is_file() and (d / "DONE.web").is_file() and (d / "viz" / "manifest_v2.json").is_file() and (d / "web" / "catalog.json").is_file():
-            out.append((d.name, d, "TNG-Cluster"))
+    if SIMBA_ROOT.is_dir():
+        for d in sorted(SIMBA_ROOT.iterdir()):
+            if not d.is_dir() or not d.name.startswith("simba100_c"):
+                continue
+            if (d / "viz" / "manifest_v2.json").is_file() and (d / "web" / "catalog.json").is_file():
+                out.append((d.name, d, "SIMBA-100"))
+    if TNG300_ROOT.is_dir():
+        for d in sorted(TNG300_ROOT.iterdir()):
+            if not d.is_dir() or not d.name.startswith("tng300_sub"):
+                continue
+            if (d / "viz" / "manifest_v2.json").is_file() and (d / "web" / "catalog.json").is_file():
+                out.append((d.name, d, "TNG300-1"))
+    if TNGC_ROOT.is_dir():
+        for d in sorted(TNGC_ROOT.iterdir()):
+            if not d.is_dir() or not d.name.startswith("tngc_h"):
+                continue
+            if (d / "viz" / "manifest_v2.json").is_file() and (d / "web" / "catalog.json").is_file():
+                out.append((d.name, d, "TNG-Cluster"))
     return out
 
 
@@ -123,6 +168,17 @@ def build_cluster_ops(cid: str, cdir: Path, tier: str = "webp") -> tuple[list[tu
     man = json.loads((vdir / "manifest_v2.json").read_text(encoding="utf-8"))
     if "galaxy" in man:
         man["galaxy"] = U.strip_private(man["galaxy"])
+    for lk, lv in man.get("levels", {}).items():
+        if lk.startswith("L"):
+            VP.ALL_GAS_LEVELS[lk] = float(lv["half_kpc"])
+            VP.GAS_LEVELS[lk] = float(lv["half_kpc"])
+        elif lk.startswith("S"):
+            VP.ALL_STAR_LEVELS[lk] = float(lv["half_kpc"])
+            VP.STAR_LEVELS[lk] = float(lv["half_kpc"])
+        if lv.get("r_mask_kpc") is None:
+            VP.R_MASK_KPC.pop(lk, None)
+        else:
+            VP.R_MASK_KPC[lk] = float(lv["r_mask_kpc"])
     m_filtered = U.filter_manifest(man, tier)
     m_bytes = U._json_bytes(m_filtered)
 
@@ -196,34 +252,59 @@ def upload_to_hf_repo(api: HfApi, repo: str, clusters: list[tuple[str, list[tupl
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser(description="Upload completed ICM cluster packs to Hugging Face shards 0 and 1.")
+    ap.add_argument("--batch-clusters", type=int, default=8, help="Clusters per Hugging Face commit (default: 8)")
+    ap.add_argument("--shard", type=int, choices=(0, 1), default=None, help="Optional single shard to upload (0 or 1)")
+    args = ap.parse_args()
+
     os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
     token = V.read_token(Path("/scratch/tsingh65/cgm_work/cache/hf/token"))
     api = HfApi(token=token)
 
     completed = collect_completed_clusters()
-    simba_ids = [c[0] for c in completed if c[2] == "SIMBA-100"]
-    tngc_ids = [c[0] for c in completed if c[2] == "TNG-Cluster"]
-    print(f"Found {len(completed)} completed ICM cluster bundles: {len(simba_ids)} SIMBA-100 + {len(tngc_ids)} TNG-Cluster", flush=True)
+    simba_all = [c[0] for c in completed if c[2] == "SIMBA-100"]
+    tng300_all = [c[0] for c in completed if c[2] == "TNG300-1"]
+    tngc_all = [c[0] for c in completed if c[2] == "TNG-Cluster"]
+    print(
+        f"Found {len(completed)} completed ICM cluster bundles: "
+        f"{len(simba_all)} SIMBA-100 + {len(tng300_all)} TNG300-1 + {len(tngc_all)} TNG-Cluster",
+        flush=True,
+    )
 
-    web_clusters = []
-    viz3d_clusters = []
-    total_web_bytes = 0
-    total_viz_bytes = 0
-    for cid, cdir, _kind in completed:
-        w_items, v_items = build_cluster_ops(cid, cdir, tier="webp")
-        web_clusters.append((cid, w_items))
-        viz3d_clusters.append((cid, v_items))
-        total_web_bytes += sum(x[2] for x in w_items)
-        total_viz_bytes += sum(x[2] for x in v_items)
+    by_shard: dict[int, list[tuple[str, Path, str]]] = {0: [], 1: []}
+    for cid, cdir, kind in completed:
+        by_shard[cluster_shard(cid, kind)].append((cid, cdir, kind))
 
-    print(f"Planned {WEB_REPO}: {len(web_clusters)} clusters, {total_web_bytes / 1e9:.2f} GB", flush=True)
-    print(f"Planned {VIZ3D_REPO}: {len(viz3d_clusters)} clusters, {total_viz_bytes / 1e9:.2f} GB", flush=True)
+    shards_to_run = [args.shard] if args.shard is not None else [0, 1]
+    for sh in shards_to_run:
+        sh_clusters = by_shard[sh]
+        if not sh_clusters:
+            continue
+        web_repo = WEB_REPOS[sh]
+        viz_repo = VIZ3D_REPOS[sh]
+        simba_ids = [c[0] for c in sh_clusters if c[2] == "SIMBA-100"]
+        tng300_ids = [c[0] for c in sh_clusters if c[2] == "TNG300-1"]
+        tngc_ids = [c[0] for c in sh_clusters if c[2] == "TNG-Cluster"]
 
-    web_readme = dataset_readme(WEB_REPO, simba_ids, tngc_ids, total_web_bytes)
-    viz_readme = dataset_readme(VIZ3D_REPO, simba_ids, tngc_ids, total_viz_bytes)
+        web_clusters = []
+        viz3d_clusters = []
+        total_web_bytes = 0
+        total_viz_bytes = 0
+        for cid, cdir, _kind in sh_clusters:
+            w_items, v_items = build_cluster_ops(cid, cdir, tier="webp")
+            web_clusters.append((cid, w_items))
+            viz3d_clusters.append((cid, v_items))
+            total_web_bytes += sum(x[2] for x in w_items)
+            total_viz_bytes += sum(x[2] for x in v_items)
 
-    upload_to_hf_repo(api, WEB_REPO, web_clusters, web_readme, batch_clusters=4)
-    upload_to_hf_repo(api, VIZ3D_REPO, viz3d_clusters, viz_readme, batch_clusters=4)
+        print(f"Planned shard {sh} -> {web_repo}: {len(web_clusters)} clusters, {total_web_bytes / 1e9:.2f} GB", flush=True)
+        print(f"Planned shard {sh} -> {viz_repo}: {len(viz3d_clusters)} clusters, {total_viz_bytes / 1e9:.2f} GB", flush=True)
+
+        web_readme = dataset_readme(web_repo, simba_ids, tng300_ids, tngc_ids, total_web_bytes)
+        viz_readme = dataset_readme(viz_repo, simba_ids, tng300_ids, tngc_ids, total_viz_bytes)
+
+        upload_to_hf_repo(api, web_repo, web_clusters, web_readme, batch_clusters=args.batch_clusters)
+        upload_to_hf_repo(api, viz_repo, viz3d_clusters, viz_readme, batch_clusters=args.batch_clusters)
     return 0
 
 

@@ -24,51 +24,40 @@ TNGC_ROOT = Path("/scratch/tsingh65/cgm_work/data/tng_cluster")
 SIMBA_ROOT = Path("/scratch/tsingh65/cgm_work/data/icm_clusters")
 TNG300_ROOT = Path("/scratch/tsingh65/cgm_work/data/tng300_z0")
 
-HF_WEB_BASE = "https://huggingface.co/datasets/tanmay-starslab/icm-atlas-web-0/resolve/main/"
-HF_3D_BASE = "https://huggingface.co/datasets/tanmay-starslab/icm-atlas-3d-0/resolve/main/"
-
-# Exactly the 24 TNG-Cluster + 10 SIMBA-100 clusters uploaded to Hugging Face icm-atlas-web-0 & icm-atlas-3d-0
-UPLOADED_TNGC = [
-    "tngc_h14258311",
-    "tngc_h14300805",
-    "tngc_h14346919",
-    "tngc_h14397702",
-    "tngc_h14441698",
-    "tngc_h14486018",
-    "tngc_h14528100",
-    "tngc_h14579813",
-    "tngc_h14859514",
-    "tngc_h14940417",
-    "tngc_h14985016",
-    "tngc_h15031462",
-    "tngc_h15087132",
-    "tngc_h15125179",
-    "tngc_h15172951",
-    "tngc_h15214679",
-    "tngc_h15264704",
-    "tngc_h15304907",
-    "tngc_h15348580",
-    "tngc_h15386285",
-    "tngc_h15428207",
-    "tngc_h15465516",
-    "tngc_h15500142",
-    "tngc_h15543062",
-]
-
-UPLOADED_SIMBA = [
-    "simba100_c01_h0",
-    "simba100_c02_h2",
-    "simba100_c03_h1",
-    "simba100_c04_h3",
-    "simba100_c05_h5",
-    "simba100_c06_h6",
-    "simba100_c07_h9",
-    "simba100_c08_h8",
-    "simba100_c09_h4",
-    "simba100_c10_h12",
-]
+HF_WEB_BASE_0 = "https://huggingface.co/datasets/tanmay-starslab/icm-atlas-web-0/resolve/main/"
+HF_WEB_BASE_1 = "https://huggingface.co/datasets/tanmay-starslab/icm-atlas-web-1/resolve/main/"
+HF_3D_BASE_0 = "https://huggingface.co/datasets/tanmay-starslab/icm-atlas-3d-0/resolve/main/"
+HF_3D_BASE_1 = "https://huggingface.co/datasets/tanmay-starslab/icm-atlas-3d-1/resolve/main/"
+HF_WEB_BASE = HF_WEB_BASE_0
+HF_3D_BASE = HF_3D_BASE_0
 
 DEFAULT_CLUSTER_ID = "tngc_h14258311"
+
+
+def load_shard0_tngc_set() -> set[str]:
+    already_in_0 = {
+        "tngc_h14258311", "tngc_h14300805", "tngc_h14346919", "tngc_h14397702",
+        "tngc_h14441698", "tngc_h14486018", "tngc_h14528100", "tngc_h14579813",
+        "tngc_h14859514", "tngc_h14940417", "tngc_h14985016", "tngc_h15031462",
+        "tngc_h15087132", "tngc_h15125179", "tngc_h15172951", "tngc_h15214679",
+        "tngc_h15264704", "tngc_h15304907", "tngc_h15348580", "tngc_h15386285",
+        "tngc_h15428207", "tngc_h15465516", "tngc_h15500142", "tngc_h15543062",
+    }
+    tpath = TNGC_ROOT / "tng_cluster_352_targets.json"
+    if tpath.is_file():
+        targets = json.loads(tpath.read_text())
+        for t in targets[:136]:
+            already_in_0.add(str(t["cluster_id"]))
+    return already_in_0
+
+
+SHARD0_TNGC_IDS = load_shard0_tngc_set()
+
+
+def web_and_viz_base(cid: str, sim_kind: str) -> tuple[str, str]:
+    if sim_kind in ("SIMBA-100", "TNG300-1") or cid in SHARD0_TNGC_IDS:
+        return f"{HF_WEB_BASE_0}{cid}/", f"{HF_3D_BASE_0}{cid}/viz/"
+    return f"{HF_WEB_BASE_1}{cid}/", f"{HF_3D_BASE_1}{cid}/viz/"
 
 
 def r200c_from_m200c(m200c_msun: float, h: float = 0.6774) -> float:
@@ -81,7 +70,8 @@ def r200c_from_m200c(m200c_msun: float, h: float = 0.6774) -> float:
 
 def populate_default_data() -> dict:
     """Copy the default cluster's static bundle (tngc_h14258311) into docs/tng50/data/."""
-    src_web = TNGC_ROOT / "gal" / DEFAULT_CLUSTER_ID / "web"
+    cdir = TNGC_ROOT / "gal" / DEFAULT_CLUSTER_ID
+    src_web = cdir / "web"
     assert src_web.is_dir(), f"Missing default cluster web bundle: {src_web}"
 
     if DATA_DIR.exists():
@@ -91,7 +81,8 @@ def populate_default_data() -> dict:
 
     for fname in ["catalog.json", "components.json", "galaxy.json"]:
         shutil.copy2(src_web / fname, DATA_DIR / fname)
-    shutil.copy2(src_web / "viz" / "manifest_v2.json", DATA_DIR / "viz" / "manifest_v2.json")
+    man_src = (src_web / "viz" / "manifest_v2.json") if (src_web / "viz" / "manifest_v2.json").is_file() else (cdir / "viz" / "manifest_v2.json")
+    shutil.copy2(man_src, DATA_DIR / "viz" / "manifest_v2.json")
 
     for bin_file in sorted((src_web / "s").glob("*.bin")):
         shutil.copy2(bin_file, DATA_DIR / "s" / bin_file.name)
@@ -104,49 +95,57 @@ def populate_default_data() -> dict:
 
 def build_cluster_list() -> list[dict]:
     """Build the 382-entry multi-simulation cluster catalog: 352 TNG-Cluster + 10 SIMBA-100 + 20 TNG300-1."""
-    # 1. Load the 24 uploaded TNG-Cluster halos with exact metadata
-    uploaded_tngc_meta: dict[str, dict] = {}
-    for cid in UPLOADED_TNGC:
-        gpath = TNGC_ROOT / "gal" / cid / "web" / "galaxy.json"
-        cpath = TNGC_ROOT / "gal" / cid / "web" / "catalog.json"
-        if not gpath.is_file():
-            continue
-        gj = json.loads(gpath.read_text())
-        cj = json.loads(cpath.read_text()) if cpath.is_file() else {}
-        n_rays = len(cj.get("entries", [])) or 120
-        m200 = float(gj.get("M200c_Msun") or 1e15)
-        r200 = float(gj.get("R200c_kpc") or r200c_from_m200c(m200))
-        mstar = float(gj.get("Mstar_Msun") or (m200 * 0.015))
-        sfr = float(gj.get("SFR_Msun_yr") or 0.5)
-        uploaded_tngc_meta[cid] = {
-            "id": cid,
-            "label": f"TNG-Cluster {cid} (log M200c = {math.log10(m200):.2f})",
-            "sim": "TNG-Cluster",
-            "simKey": "tngcluster",
-            "Mstar": round(mstar, 1),
-            "SFR": round(sfr, 3),
-            "M200c": round(m200, 1),
-            "R200c": round(r200, 1),
-            "central": True,
-            "mw": False,
-            "m31": False,
-            "n": n_rays,
-            "viz": True,
-            "src": "trident",
-            "base": f"{HF_WEB_BASE}{cid}/",
-        }
+    # 1. Discover all completed TNG-Cluster halos on disk
+    completed_tngc_meta: dict[str, dict] = {}
+    tngc_gal_dir = TNGC_ROOT / "gal"
+    if tngc_gal_dir.is_dir():
+        for cdir in sorted(tngc_gal_dir.iterdir()):
+            if not cdir.is_dir() or not cdir.name.startswith("tngc_h"):
+                continue
+            cid = cdir.name
+            gpath = cdir / "web" / "galaxy.json"
+            cpath = cdir / "web" / "catalog.json"
+            mpath = cdir / "viz" / "manifest_v2.json"
+            if not (gpath.is_file() and cpath.is_file() and mpath.is_file()):
+                continue
+            gj = json.loads(gpath.read_text())
+            cj = json.loads(cpath.read_text())
+            n_rays = len(cj.get("entries", [])) or 120
+            m200 = float(gj.get("M200c_Msun") or 1e15)
+            r200 = float(gj.get("R200c_kpc") or r200c_from_m200c(m200))
+            mstar = float(gj.get("Mstar_Msun") or (m200 * 0.015))
+            sfr = float(gj.get("SFR_Msun_yr") or 0.5)
+            src_kind = "sbi" if str((cj.get("spectra_source") or {}).get("source", "")).startswith("sbi") else "trident"
+            w_base, v_base = web_and_viz_base(cid, "TNG-Cluster")
+            completed_tngc_meta[cid] = {
+                "id": cid,
+                "label": f"TNG-Cluster {cid} (log M200c = {math.log10(m200):.2f})",
+                "sim": "TNG-Cluster",
+                "simKey": "tngcluster",
+                "Mstar": round(mstar, 1),
+                "SFR": round(sfr, 3),
+                "M200c": round(m200, 1),
+                "R200c": round(r200, 1),
+                "central": True,
+                "mw": False,
+                "m31": False,
+                "n": n_rays,
+                "viz": True,
+                "src": src_kind,
+                "base": w_base,
+                "viz_base": v_base,
+            }
 
-    # Helper to find nearest uploaded TNG-Cluster pack by M200c
-    def nearest_uploaded_tngc_base(m200c_val: float) -> str:
+    def nearest_completed_tngc_bases(m200c_val: float) -> tuple[str, str]:
         best_id = DEFAULT_CLUSTER_ID
         best_diff = 1e99
         lm = math.log10(max(m200c_val, 1e13))
-        for ucid, umeta in uploaded_tngc_meta.items():
+        for ucid, umeta in completed_tngc_meta.items():
             diff = abs(math.log10(max(umeta["M200c"], 1e13)) - lm)
             if diff < best_diff:
                 best_diff = diff
                 best_id = ucid
-        return f"{HF_WEB_BASE}{best_id}/"
+        return web_and_viz_base(best_id, "TNG-Cluster")
 
     # 2. All 352 TNG-Cluster targets from tng_cluster_352_targets.json
     tngc_raw = json.loads((TNGC_ROOT / "tng_cluster_352_targets.json").read_text())
@@ -155,24 +154,21 @@ def build_cluster_list() -> list[dict]:
     tngc_rest_entries = []
     for t in tngc_targets:
         cid = str(t.get("cluster_id") or t.get("gal_id") or t.get("key"))
-        if cid in uploaded_tngc_meta:
-            um = uploaded_tngc_meta[cid]
-            # Enrich from target table if galaxy.json had placeholder values
-            if t.get("m200c_msun"):
-                um["M200c"] = round(float(t["m200c_msun"]), 1)
-            if t.get("r200c_kpc"):
-                um["R200c"] = round(float(t["r200c_kpc"]), 1)
-            if t.get("mstar_msun"):
-                um["Mstar"] = round(float(t["mstar_msun"]), 1)
-            if t.get("sfr_msun_yr") is not None:
-                um["SFR"] = round(float(t["sfr_msun_yr"]), 3)
-            tngc_uploaded_entries.append(um)
-            continue
         log_m200 = float(t.get("log10_m200c_msun") or t.get("log_M200c") or 14.5)
         m200 = float(t.get("m200c_msun") or (10.0 ** log_m200))
         r200 = float(t.get("r200c_kpc") or r200c_from_m200c(m200))
         mstar = float(t.get("mstar_msun") or (10.0 ** (11.75 + 0.45 * (log_m200 - 14.5))))
         sfr = float(t.get("sfr_msun_yr") if t.get("sfr_msun_yr") is not None else 0.15)
+        if cid in completed_tngc_meta:
+            um = completed_tngc_meta[cid]
+            um["label"] = f"TNG-Cluster {cid} (FoF {t.get('grnr')}, log M200c = {log_m200:.2f})"
+            um["M200c"] = round(m200, 1)
+            um["R200c"] = round(r200, 1)
+            um["Mstar"] = round(mstar, 1)
+            um["SFR"] = round(sfr, 3)
+            tngc_uploaded_entries.append(um)
+            continue
+        w_base, v_base = nearest_completed_tngc_bases(m200)
         tngc_rest_entries.append({
             "id": cid,
             "label": f"TNG-Cluster {cid} (FoF {t.get('grnr')}, log M200c = {log_m200:.2f})",
@@ -187,8 +183,9 @@ def build_cluster_list() -> list[dict]:
             "m31": False,
             "n": 120,
             "viz": True,
-            "src": "trident",
-            "base": nearest_uploaded_tngc_base(m200),
+            "src": "sbi",
+            "base": w_base,
+            "viz_base": v_base,
         })
 
     # 3. All 10 SIMBA-100 massive clusters
@@ -205,6 +202,7 @@ def build_cluster_list() -> list[dict]:
         r200 = float(gj.get("R200c_kpc") or r200c_from_m200c(m200))
         mstar = float(gj.get("Mstar_Msun") or (m200 * 0.015))
         sfr = float(gj.get("SFR_Msun_yr") or 0.2)
+        w_base, v_base = web_and_viz_base(cid, "SIMBA-100")
         simba_entries.append({
             "id": cid,
             "label": f"SIMBA-100 {cid} (log M200c = {math.log10(m200):.2f})",
@@ -220,24 +218,33 @@ def build_cluster_list() -> list[dict]:
             "n": n_rays,
             "viz": True,
             "src": "trident",
-            "base": f"{HF_WEB_BASE}{cid}/",
+            "base": w_base,
+            "viz_base": v_base,
         })
 
-    # 4. 20 TNG300-1 clusters from /scratch/tsingh65/cgm_work/data/tng300_z0/targets.json
-    tng300_raw = json.loads((TNG300_ROOT / "targets.json").read_text())
-    tng300_targets = tng300_raw["targets"] if isinstance(tng300_raw, dict) else tng300_raw
+    # 4. 20 TNG300-1 clusters from /scratch/tsingh65/cgm_work/data/tng300_z0
+    tng300_dirs = sorted(
+        p for p in TNG300_ROOT.glob("tng300_sub*")
+        if p.is_dir() and (p / "web" / "catalog.json").is_file() and (p / "viz" / "manifest_v2.json").is_file()
+    )
     tng300_entries = []
-    for idx, t in enumerate(tng300_targets):
-        sub_id = int(t.get("subhalo_id", t.get("id", idx)))
-        cid = f"tng300_sub{sub_id}"
-        log_m200 = float(t.get("mass_log_msun") or t.get("log10_m") or 14.8)
-        m200 = float(t.get("m_msun") or (10.0 ** log_m200))
-        r200 = float(t.get("r_kpc") or r200c_from_m200c(m200))
-        mstar = float(t.get("mstar_msun") or (10.0 ** (11.75 + 0.45 * (log_m200 - 14.5))))
-        sfr = float(t.get("sfr") if t.get("sfr") is not None else 0.25)
+    for idx, cdir in enumerate(tng300_dirs):
+        cid = cdir.name
+        gpath = cdir / "web" / "galaxy.json"
+        cpath = cdir / "web" / "catalog.json"
+        gj = json.loads(gpath.read_text()) if gpath.is_file() else {}
+        cj = json.loads(cpath.read_text()) if cpath.is_file() else {}
+        n_rays = len(cj.get("entries", [])) or 120
+        m200 = float(gj.get("M200c_Msun") or 1e14)
+        r200 = float(gj.get("R200c_kpc") or r200c_from_m200c(m200))
+        mstar = float(gj.get("Mstar_Msun") or (m200 * 0.015))
+        sfr = float(gj.get("SFR_Msun_yr") if gj.get("SFR_Msun_yr") is not None else 0.25)
+        sub_num = cid.replace("tng300_sub", "")
+        src_kind = "sbi" if str((cj.get("spectra_source") or {}).get("source", "")).startswith("sbi") else "trident"
+        w_base, v_base = web_and_viz_base(cid, "TNG300-1")
         tng300_entries.append({
             "id": cid,
-            "label": f"TNG300-1 Cluster #{idx + 1} (subhalo {sub_id}, log M200c = {math.log10(m200):.2f})",
+            "label": f"TNG300-1 Halo #{idx + 1} (subhalo {sub_num}, log M200c = {math.log10(max(m200, 1.0)):.2f})",
             "sim": "TNG300-1",
             "simKey": "tng300",
             "Mstar": round(mstar, 1),
@@ -247,16 +254,19 @@ def build_cluster_list() -> list[dict]:
             "central": True,
             "mw": False,
             "m31": False,
-            "n": 120,
+            "n": n_rays,
             "viz": True,
-            "src": "trident",
-            "base": nearest_uploaded_tngc_base(m200),
+            "src": src_kind,
+            "base": w_base,
+            "viz_base": v_base,
         })
 
+    # Place default cluster first if present in tngc_uploaded_entries
+    tngc_uploaded_entries.sort(key=lambda e: (0 if e["id"] == DEFAULT_CLUSTER_ID else 1, -e["M200c"]))
     all_clusters = tngc_uploaded_entries + tngc_rest_entries + simba_entries + tng300_entries
     print(
         f"Built multi-simulation cluster catalog: {len(all_clusters)} total "
-        f"({len(tngc_uploaded_entries)} uploaded TNG-Cluster + {len(tngc_rest_entries)} additional TNG-Cluster + "
+        f"({len(tngc_uploaded_entries)} completed TNG-Cluster + {len(tngc_rest_entries)} additional TNG-Cluster + "
         f"{len(simba_entries)} SIMBA-100 + {len(tng300_entries)} TNG300-1)"
     )
     return all_clusters

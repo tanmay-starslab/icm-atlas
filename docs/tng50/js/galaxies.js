@@ -149,8 +149,11 @@ export function packFor(index, id, legacy) {
   }
   // per-galaxy base (hosting index: packs sharded over several HF datasets) wins over the shared <base><id>/
   const e = index.byId.get(id), b = packBase(e) || index.base + id + "/";
-  const viz = e.viz ? {manifest_url: b + "viz/manifest_v2.json", base: index.vizBase ? index.vizBase.split("{id}").join(String(id)) : b + "viz/",
-    fallback_base: null, dataset: null} : null;
+  const vb = (e && typeof e.viz_base === "string" && e.viz_base.endsWith("/") && !e.viz_base.includes(".."))
+    ? e.viz_base
+    : (index.vizBase ? index.vizBase.split("{id}").join(String(id)) : b + "viz/");
+  const viz = e.viz ? {manifest_url: b + "viz/manifest_v2.json", base: vb,
+    fallback_base: b + "viz/", dataset: null} : null;
   return {id, legacy: false, catalog_url: b + "catalog.json", bin_dir: b + "s/", components_url: b + "components.json",
     galaxy_url: b + "galaxy.json", viz};
 }
