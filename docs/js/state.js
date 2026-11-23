@@ -18,7 +18,16 @@ export function makeRegistry(cfg) {
   const BANDS = Object.assign(Object.create(null), cfg.bands || {}), BAND_KEYS = Object.keys(BANDS);
   const SNR = Object.assign({min: 2, max: 100, default: 10, pair: [20, 5]}, cfg.snr || {});
   const d = cfg.defaults || {};
-  const R = {}; for (const b of BAND_KEYS) { const r = (d.R || {})[b] || BANDS[b].R.pair || [BANDS[b].R.default, BANDS[b].R.default]; R[b] = [r[0], r[1] ?? r[0]]; }
+  const R = {};
+  for (const b of BAND_KEYS) {
+    const br = BANDS[b].R || {};
+    if (b === "xray" && (!br.default || br.default < 3000) && !(d.R && d.R.xray)) {
+      br.default = 3000;
+      if (Array.isArray(br.pair) && br.pair[0] < 3000) br.pair = [3000, br.pair[0] || 1000];
+    }
+    const r = (d.R || {})[b] || (br.default === 3000 ? [3000, (br.pair || [])[1] ?? 1000] : br.pair) || [br.default, br.default];
+    R[b] = [r[0], r[1] ?? r[0]];
+  }
   const ions = (d.ions || []).filter(k => ION[k]);
   const DEF = {id: d.id || null, ions: ions.length ? ions : ["OVII", "NeVIII", "OVI", "NV", "HI"].filter(k => ION[k]), layout: LAYOUTS.includes(d.layout) ? d.layout : PAGE_LAYOUT,
     R, sn: (d.sn || SNR.pair).slice(0, 2), vc: +d.vc || 0, vhw: +(d.vhw ?? d.vhw_kms) || 1000, seed: +d.seed || 0, intr: !!d.intrinsic, fit: !!d.fit, tab: "spectra"};

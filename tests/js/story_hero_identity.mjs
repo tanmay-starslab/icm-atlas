@@ -189,7 +189,7 @@ async function domPart(root) {
   const QA = await import(pathToFileURL(join(REPO, "tests/js/lib/storyqa.mjs")).href);
   let base = QA.plainEdge();
   if (!base) { try { base = BR.findBrowser(); } catch { base = null; } }
-  if (!base && fs.existsSync("/scratch/tsingh65/cgm_work/bin/chrome/headless")) base = "/scratch/tsingh65/cgm_work/bin/chrome/headless";
+  if (!base && existsSync("/scratch/tsingh65/cgm_work/bin/chrome/headless")) base = "/scratch/tsingh65/cgm_work/bin/chrome/headless";
   if (!base) return {error: "no Chromium browser found (set TNG_EDGE, or H0_NO_DOM=1 to skip the dom part explicitly)"};
   const edge = QA.edgeWith(base, QA.SWIFTSHADER_FLAGS);   // software WebGL everywhere: the same DOM on GPU and CPU nodes
   const srv = await QA.gzServe(resolve(root, "../.."));

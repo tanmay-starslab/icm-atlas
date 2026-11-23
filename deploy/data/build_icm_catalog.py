@@ -74,10 +74,17 @@ def populate_default_data() -> dict:
     src_web = cdir / "web"
     assert src_web.is_dir(), f"Missing default cluster web bundle: {src_web}"
 
-    if DATA_DIR.exists():
-        shutil.rmtree(DATA_DIR)
+    if (DATA_DIR / "s").exists():
+        shutil.rmtree(DATA_DIR / "s")
+    if (DATA_DIR / "c").exists():
+        shutil.rmtree(DATA_DIR / "c")
     (DATA_DIR / "s").mkdir(parents=True, exist_ok=True)
     (DATA_DIR / "viz").mkdir(parents=True, exist_ok=True)
+    hfpolish_s = Path("/scratch/tsingh65/cgm_work/scratch/hfpolish/docs/tng50/data/s")
+    for hero_name in ("rand_b062_a062.bin", "rand_b050_a215.bin", "rand_b139_a096.bin"):
+        src_h = hfpolish_s / hero_name
+        if src_h.is_file():
+            shutil.copy2(src_h, DATA_DIR / "s" / hero_name)
 
     for fname in ["catalog.json", "components.json", "galaxy.json"]:
         shutil.copy2(src_web / fname, DATA_DIR / fname)
@@ -89,7 +96,9 @@ def populate_default_data() -> dict:
 
     gal_info = json.loads((src_web / "galaxy.json").read_text())
     cat_info = json.loads((src_web / "catalog.json").read_text())
-    print(f"Populated docs/tng50/data/ with {DEFAULT_CLUSTER_ID} ({len(cat_info.get('entries', []))} sightlines)")
+    entries = cat_info.get("entries", [])
+    print(f"Populated docs/tng50/data/ with {DEFAULT_CLUSTER_ID} ({len(entries)} sightlines)")
+    gal_info["_entries"] = entries
     return gal_info
 
 
@@ -298,11 +307,58 @@ def render_index_html(default_gal: dict, cluster_list: list[dict]) -> None:
         "yhat": default_gal.get("yhat", [0.0, 1.0, 0.0]),
         "R200c_kpc": default_gal.get("R200c_kpc", 2436.2),
     }
-    data_obj["n_static"] = 120
+    # Pick the richest multiphase X-ray + UV sightline in tngc_h14258311
+    entries = default_gal.get("_entries") or []
+    best_id = "face_b050_a090"
+    if entries:
+        def _ion_depth(e: dict, k: str) -> float:
+            ions_map = e.get("ions") if isinstance(e.get("ions"), dict) else {}
+            ik = ions_map.get(k) if isinstance(ions_map.get(k), dict) else {}
+            if ik.get("min_flux") is not None:
+                return max(0.0, 1.0 - float(ik["min_flux"]))
+            return float(e.get(f"{k}_depth") or 0.0)
+
+        def _rich_key(e: dict) -> tuple:
+            ew_obj = e.get("ew") if isinstance(e.get("ew"), dict) else {}
+            ions_map = e.get("ions") if isinstance(e.get("ions"), dict) else {}
+            logn_map = e.get("logN") if isinstance(e.get("logN"), dict) else {}
+            multi = 0.0
+            for k in ("OVII", "NeVIII", "OVI", "NV", "HI", "CIV"):
+                ik = ions_map.get(k) if isinstance(ions_map.get(k), dict) else {}
+                w_ion = 1.5 if k in ("OVII", "NeVIII", "OVI") else 1.0
+                ew_v = float(ew_obj.get(k) or e.get(f"{k}_ew") or 0.0)
+                dep_v = _ion_depth(e, k)
+                nc_v = int(ik.get("n_comp") or 0)
+                sh_v = 2.0 if (ik.get("showcase") or e.get(f"{k}_showcase")) else 0.0
+                ln_v = max(0.0, min(3.0, (float(logn_map.get(k) or 0.0) - 13.0) * 0.25))
+                multi += w_ion * (ew_v + 3.0 * dep_v + 0.35 * min(4, nc_v) * dep_v + ln_v + sh_v)
+            has_all_default_ions = int(
+                _ion_depth(e, "OVII") >= 0.45
+                and _ion_depth(e, "NeVIII") >= 0.45
+                and _ion_depth(e, "OVI") >= 0.45
+                and _ion_depth(e, "NV") >= 0.30
+                and _ion_depth(e, "HI") >= 0.50
+            )
+            return (has_all_default_ions, int(bool(e.get("showcase") or (e.get("n_showcase_ions") or 0) >= 2)), round(multi, 4), -int(e.get("rank") or 9999))
+        best_entry = max(entries, key=_rich_key)
+        best_id = str(best_entry["id"])
+        print(
+            f"Selected richest default sightline for {DEFAULT_CLUSTER_ID}: {best_id} "
+            f"(OVII_depth={_ion_depth(best_entry, 'OVII'):.3f}, NeVIII_depth={_ion_depth(best_entry, 'NeVIII'):.3f}, "
+            f"OVI_depth={_ion_depth(best_entry, 'OVI'):.3f}, NV_depth={_ion_depth(best_entry, 'NV'):.3f}, "
+            f"HI_depth={_ion_depth(best_entry, 'HI'):.3f}, CIV_depth={_ion_depth(best_entry, 'CIV'):.3f})"
+        )
+
+    if "bands" in data_obj and "xray" in data_obj["bands"]:
+        data_obj["bands"]["xray"]["R"] = {"min": 100, "max": 5000, "default": 3000, "pair": [3000, 1000]}
+        data_obj["bands"]["xray"]["R_eval"] = 3000
+
+    data_obj["n_static"] = len(entries) or 120
     data_obj["defaults"] = {
-        "id": "face_b0010_a000",
+        "id": best_id,
         "ions": ["OVII", "NeVIII", "OVI", "NV", "HI"],
         "layout": "1",
+        "R": {"uv": [30000, 50000], "euv": [30000, 50000], "xray": [3000, 1000]},
         "vhw": 1000,
         "vhw_kms": 1000,
     }
