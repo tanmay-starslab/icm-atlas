@@ -17,15 +17,9 @@ export function makeRegistry(cfg) {
   const ION = Object.assign(Object.create(null), Object.fromEntries(IONS.map(i => [i.key, i]))), KEYS = IONS.map(i => i.key);
   const BANDS = Object.assign(Object.create(null), cfg.bands || {}), BAND_KEYS = Object.keys(BANDS);
   const SNR = Object.assign({min: 2, max: 100, default: 10, pair: [20, 5]}, cfg.snr || {});
-  const d = cfg.defaults || {};
-  const R = {};
+  const d = cfg.defaults || {}, R = {};
   for (const b of BAND_KEYS) {
-    const br = BANDS[b].R || {};
-    if (b === "xray" && (!br.default || br.default < 3000) && !(d.R && d.R.xray)) {
-      br.default = 3000;
-      if (Array.isArray(br.pair) && br.pair[0] < 3000) br.pair = [3000, br.pair[0] || 1000];
-    }
-    const r = (d.R || {})[b] || (br.default === 3000 ? [3000, (br.pair || [])[1] ?? 1000] : br.pair) || [br.default, br.default];
+    const br = BANDS[b].R || {}, r = (d.R || {})[b] || (br.default === 3000 ? [3000, (br.pair || [])[1] ?? 1000] : br.pair) || [br.default, br.default];
     R[b] = [r[0], r[1] ?? r[0]];
   }
   const ions = (d.ions || []).filter(k => ION[k]);
@@ -45,11 +39,7 @@ export function fitLoose(c) {
   return !!((+c.flag || 0) & 32) || !Number.isFinite(c.dlogN) || c.dlogN > LOOSE_DEX;
 }
 
-/* ---- lower limits (Phase-3 owner decision 2; tngsight/search.py is the reference and tests/search_golden.json
-   fixes the rule). A saturated or degenerate catalogue component, flag NOERR, or SAT without DAMPED, on any ion, is
-   never a measurement: its column is the lower limit min(logN, logN_lo). annotateLimits gives logN_lo: the AOD
-   column of the component's fit region minus the region's measured components, shared among the region's limits in
-   proportion to their fitted N, so the limits of a region never add up to more than its exact column. ---- */
+/* lower limits (Phase-3 owner decision 2; tngsight/search.py is the reference): NOERR, or SAT without DAMPED, is a lower limit min(logN, logN_lo). */
 export const FLAG = {SAT: 1, BOUND: 2, MAXCOMP: 4, POORFIT: 8, EDGE: 16, NOERR: 32, DAMPED: 64, BUDGET: 128};
 const isNum = x => typeof x === "number" && Number.isFinite(x);
 const roundAway = (x, d) => { const p = 10 ** d; return Math.sign(x) * Math.floor(Math.abs(x) * p + 0.5) / p + 0; };
