@@ -24,7 +24,8 @@ mkdirSync(OUT, {recursive: true});
 cpSync(join(SRC, "tng50"), OUT, {recursive: true, filter: src => !skip(src)});
 
 // Detect & Resolve at /detect/ (with /observe/ and /requirements/ also populated so every short or legacy URL serves HTTP 200):
-let dr = readFileSync(join(SRC, "index.html"), "utf8");
+const drSrc = existsSync(join(SRC, "detect_source.html")) ? join(SRC, "detect_source.html") : join(SRC, "index.html");
+let dr = readFileSync(drSrc, "utf8");
 dr = dr.replaceAll('href="tng50/learn/', 'href="/learn/').replaceAll('href="tng50/"', 'href="/"').replaceAll('href="tng50/favicon.ico"', 'href="/favicon.ico"').replaceAll('href="tng50/img/icon/', 'href="/img/icon/').replaceAll('href="tng50/site.webmanifest"', 'href="/site.webmanifest"')
   .replaceAll('href="tng50/css/', 'href="/css/').replaceAll('href="tng50/fonts/', 'href="/fonts/')   // shared tokens.css, page.css and fonts
   .replaceAll('from "tng50/js/', 'from "/js/');                                            // the explorer's liquidtabs.js
@@ -86,7 +87,7 @@ writeFileSync(join(OUT, "_headers"), [
 // <base href="../"> for its relative assets and the story id put into ?story= before any page script reads it.
 // shortcut: the shim rewrites the address to <id>/?story=<id> because js/main.js reads only ?story=; drop it once
 // main.js also reads <html data-story>.
-const LEARN = join(OUT, "learn", "how-a-spectrum-is-made"), SITE = "https://icm.tanmaysingh.uk/learn/how-a-spectrum-is-made/";
+const LEARN = join(OUT, "learn", "how-a-spectrum-is-made"), SITE = "https://icm.tanmaysingh.uk/learn/how-a-spectrum-is-made/", SITE_GAL = "https://galaxies.tanmaysingh.uk/learn/how-a-spectrum-is-made/";
 if (process.env.BUILD_SITE_INDEX) cpSync(process.env.BUILD_SITE_INDEX, join(LEARN, "data", "index.json"));
 const sidx = JSON.parse(readFileSync(join(LEARN, "data", "index.json"), "utf8"));
 const caseIds = sidx.picker === "cases" ? (sidx.stories || []).filter(e => e.case && e.case !== "full" && e.gates && e.gates.all === true).map(e => e.id) : [];
@@ -96,7 +97,8 @@ for (const id of caseIds) {
   // <base> would also resolve history.replaceState("#frag") to the hero page, so the shim resolves state URLs against the address.
   const shim = `<script>(function(){var h=history;["pushState","replaceState"].forEach(function(k){var f=h[k];h[k]=function(s,t,u){return f.call(h,s,t,u==null?u:new URL(u,location.href).href);};});var q=new URLSearchParams(location.search);if(q.get("story")!=="${id}"){q.set("story","${id}");history.replaceState(history.state,"",location.pathname+"?"+q+location.hash);}})()</script>`;
   const html = page.replace('<html lang="en"', `<html lang="en" data-story="${id}"`).replace("<head>\n", `<head>\n<base href="../">\n${shim}\n`)
-    .replaceAll(`href="${SITE}"`, `href="${SITE}${id}/"`).replaceAll(`content="${SITE}"`, `content="${SITE}${id}/"`);
+    .replaceAll(`href="${SITE}"`, `href="${SITE}${id}/"`).replaceAll(`content="${SITE}"`, `content="${SITE}${id}/"`)
+    .replaceAll(`href="${SITE_GAL}"`, `href="${SITE_GAL}${id}/"`).replaceAll(`content="${SITE_GAL}"`, `content="${SITE_GAL}${id}/"`);
   if (!html.includes('<base href="../">') || !html.includes(`data-story="${id}"`)) throw new Error("build: explainer page head changed; update the per-story page edit");
   mkdirSync(join(LEARN, id));
   writeFileSync(join(LEARN, id, "index.html"), html);

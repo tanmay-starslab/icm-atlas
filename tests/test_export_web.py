@@ -109,8 +109,8 @@ def test_fake_library_export(fake_lib, tmp_path, capsys):
     fonts = sorted(p.relative_to(ROOT / "docs" / "tng50" / "fonts") for p in (ROOT / "docs" / "tng50" / "fonts").rglob("*.woff2"))
     assert len(fonts) == 7 and all((out / "fonts" / f).read_bytes() == (ROOT / "docs" / "tng50" / "fonts" / f).read_bytes() for f in fonts)
     html = (out / "index.html").read_text(encoding="utf-8")
-    assert 'href="css/page.css"' in html and 'src="js/app.js"' in html and "Interactive companion" not in html
-    assert html.index('href="css/tokens.css"') < html.index('href="css/page.css"') and 'href="fonts/space-grotesk-latin.woff2"' in html
+    assert 'href="css/page.css' in html and 'src="js/app.js' in html and "Interactive companion" not in html
+    assert html.index('href="css/tokens.css"') < html.index('href="css/page.css') and 'href="fonts/space-grotesk-latin.woff2"' in html
     assert not (out / "data" / "vol").exists() and not (out / "data" / "viz").exists()
     luts = ROOT / "docs" / "tng50" / "data" / "luts" / "luts.json"       # U_view's file; copied when --out is elsewhere
     if luts.is_file():
@@ -141,9 +141,9 @@ def test_cfg_v3_from_registry(fake_lib, tmp_path):
     assert cfg["bands"] == I.BANDS and cfg["snr"] == I.SNR and cfg["grid"] == {"dv_web": 1.0}
     assert cfg["registry_tag"] == I.registry_tag()
     assert cfg["fitter"] == {"worker": "js/fitworker.js", "budget_ms": 300, "cap_ms": 1500, "version": "fit/1"}
-    assert cfg["defaults"] == {"id": "edge_b100_a090", "ions": ["HI", "MgII", "SiIII", "CIV", "OVI"], "layout": "1",   # page opens on one case
+    assert cfg["defaults"] == {"id": "edge_b100_a090", "ions": ["OVII", "NeVIII", "OVI", "NV", "HI"], "layout": "1",   # page opens on one case
                                "R": {"uv": [15000, 50000], "euv": [15000, 50000], "xray": [300, 3000]},
-                               "sn": [20, 5], "vc": 0, "vhw": 400, "seed": 0, "intrinsic": True, "fit": True}
+                               "sn": [20, 5], "vc": 0, "vhw": 1000, "seed": 0, "intrinsic": True, "fit": True}
     for k in ("catalog_url", "bin_dir", "n_static", "backends", "galaxy", "frame", "viz", "components_url", "js_base",
               "three", "chat", "custom"):
         assert k in cfg, k

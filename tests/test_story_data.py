@@ -518,6 +518,7 @@ def test_v2_kernel_table_exact():
               for q, u in ((q, rng.uniform(-1, 1, 30)) for q in rng.uniform(0, 0.999, 30)))
     assert err < 5e-4, err
     # the table is the yt kernel: its full chord column reproduces yt's interpolation table
+    pytest.importorskip("yt")
     from yt.utilities.lib.pixelization_routines import SPHKernelInterpolationTable
     q = np.linspace(0, 0.99, 12)
     col = [2 * float(np.sum(np.polynomial.legendre.leggauss(400)[1] * E.yt_cubic(np.sqrt(x * x + (np.sqrt(1 - x * x) * (

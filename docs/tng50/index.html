@@ -26,7 +26,7 @@
 <link rel="preload" href="fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/jetbrains-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/tokens.css">
-<link rel="stylesheet" href="css/page.css?v=20261123c">
+<link rel="stylesheet" href="css/page.css?v=20261123d">
 <style>/* Entry to "How an absorption spectrum is made" (explainer v2, U_entry): a beam-coloured call to action in the spectra panel header,
    on the row under Lines, with a dismissible hint beside it, just above the first spectrum (the Lines row has about
    130 px free at 1440 px with the default five lines, too little for the pill). First visit (review2 beauty M4): from 640 px
@@ -118,23 +118,23 @@ body:has(>#chat-open.fab:not([hidden])) #bar{padding-right:104px}
 })(window);
 </script>
 <!-- perf R5: js/app.js and its static imports, fetched in parallel (after the import map; tests/js/ui_static.mjs keeps the list) -->
-<link rel="modulepreload" href="js/app.js?v=20261123c"><link rel="modulepreload" href="js/state.js?v=20261123c"><link rel="modulepreload" href="js/spectra.js?v=20261123c"><link rel="modulepreload" href="js/gallery.js?v=20261123c"><link rel="modulepreload" href="js/instrument.js?v=20261123c"><link rel="modulepreload" href="js/fit.js?v=20261123c"><link rel="modulepreload" href="js/tips.js?v=20261123c"><link rel="modulepreload" href="js/features.js?v=20261123c"><link rel="modulepreload" href="js/liquidtabs.js?v=20261123c"><link rel="modulepreload" href="js/liquidbg.js?v=20261123c"><link rel="modulepreload" href="js/uisound.js?v=20261123c"><link rel="modulepreload" href="js/galaxies.js?v=20261123c"><link rel="modulepreload" href="js/tier.js?v=20261123c">
+<link rel="modulepreload" href="js/app.js?v=20261123d"><link rel="modulepreload" href="js/state.js?v=20261123d"><link rel="modulepreload" href="js/spectra.js?v=20261123d"><link rel="modulepreload" href="js/gallery.js?v=20261123d"><link rel="modulepreload" href="js/instrument.js?v=20261123d"><link rel="modulepreload" href="js/fit.js?v=20261123d"><link rel="modulepreload" href="js/tips.js?v=20261123d"><link rel="modulepreload" href="js/features.js?v=20261123d"><link rel="modulepreload" href="js/liquidtabs.js?v=20261123d"><link rel="modulepreload" href="js/liquidbg.js?v=20261123d"><link rel="modulepreload" href="js/uisound.js?v=20261123d"><link rel="modulepreload" href="js/galaxies.js?v=20261123d"><link rel="modulepreload" href="js/tier.js?v=20261123d">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Intracluster Medium (ICM) & Galaxy Cluster Atlas","url":"https://icm.tanmaysingh.uk/","applicationCategory":"EducationalApplication","operatingSystem":"Any (web browser)","description":"Interactive 3D Multi-Simulation Intracluster Medium (ICM) & Galaxy Cluster Atlas (352 TNG-Cluster Halos + 10 SIMBA-100 Massive Clusters + 20 TNG300-1 Halos) + 12-Ion Voigt Absorption Sightline Explorer.","author":{"@type":"Person","name":"Tanmay Singh","url":"https://tanmaysingh.uk/"},"isAccessibleForFree":true,"codeRepository":"https://github.com/tanmay-starslab/icm-atlas"}</script>
 </head>
 <body data-tab="spectra">
 <header id="top" class="glass" data-testid="topbar">
   <h1 id="title" data-testid="title">ICM &amp; Cluster Atlas</h1>
-  <div role="tablist" id="tabs" aria-label="Views"><button role="tab" id="tab-spectra" data-tip="Mock absorption spectra of the selected cluster sightline" aria-controls="panel-spectra" aria-selected="true" tabindex="0" type="button">Spectra</button><button role="tab" id="tab-3d" data-tip="The galaxy cluster &amp; ICM in 3D: gas, ions, velocities, BCG starlight and sightlines (±4 Mpc to ±15 kpc)" aria-controls="panel-3d" aria-selected="false" tabindex="-1" type="button">3D</button></div>
+  <div role="tablist" id="tabs" aria-label="Views"><button role="tab" id="tab-spectra" data-tip="Mock absorption spectra of the selected cluster sightline" aria-controls="panel-spectra" aria-selected="true" tabindex="0" type="button">Spectra</button><button role="tab" id="tab-3d" data-tip="The cluster and ICM in 3D: gas, ions, velocities, stars and sightlines" aria-controls="panel-3d" aria-selected="false" tabindex="-1" type="button">3D</button></div>
   <span class="sep hide-m"></span>
   <!-- cluster picker (multi-simulation cluster sample; js/galaxies.js) -->
   <div class="grp" id="grp-gal" role="group" aria-label="Cluster" hidden><span class="gl">Cluster</span>
-    <button class="pbtn" id="gxy-open" type="button" data-testid="galaxy-open" aria-haspopup="dialog" aria-controls="gxy-pop" aria-expanded="false" data-tip="Pick a galaxy cluster across TNG-Cluster (352 halos), SIMBA-100 (10 clusters) and TNG300-1 (20 halos)"><svg class="gxg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><ellipse cx="8" cy="8" rx="6.4" ry="2.6" transform="rotate(-20 8 8)"/><circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"/></svg><span class="glab" data-id="tngc_h14258311">h14258311</span><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/></svg></button>
+    <button class="pbtn" id="gxy-open" type="button" data-testid="galaxy-open" aria-haspopup="dialog" aria-controls="gxy-pop" aria-expanded="false" data-tip="Pick a galaxy cluster across TNG-Cluster, SIMBA-100 and TNG300-1"><svg class="gxg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><ellipse cx="8" cy="8" rx="6.4" ry="2.6" transform="rotate(-20 8 8)"/><circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"/></svg><span class="glab" data-id="tngc_h14258311">h14258311</span><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/></svg></button>
   </div>
   <div class="grp" id="grp-sight" role="group" aria-label="Sightline"><span class="gl">Sightline</span>
     <button class="pbtn sq" id="prev" type="button" aria-label="Previous sightline" data-tip="Previous sightline in the list (k)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 3 5 8l5 5"/></svg></button>
     <button class="pbtn" id="gal-open" type="button" data-testid="gallery-open" aria-haspopup="dialog" aria-controls="gal-pop" aria-expanded="false" data-tip="Pick a cluster sightline by orientation, impact parameter b or azimuth Φ"><span class="slab" data-id="">loading</span><svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5"/></svg></button>
     <button class="pbtn sq" id="next" type="button" aria-label="Next sightline" data-tip="Next sightline in the list (j)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m6 3 5 5-5 5"/></svg></button>
-    <button class="pbtn" id="geo-open" type="button" data-testid="geo-open" aria-haspopup="dialog" aria-controls="geo-pop" aria-expanded="false" data-tip="Cast a new cluster sightline from orientation, impact parameter (0 to 4000 kpc) and azimuth"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 3v10M3 8h10"/></svg>New ray</button>
+    <button class="pbtn" id="geo-open" type="button" data-testid="geo-open" aria-haspopup="dialog" aria-controls="geo-pop" aria-expanded="false" data-tip="Cast a new cluster sightline from orientation, impact parameter and azimuth"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 3v10M3 8h10"/></svg>New ray</button>
   </div>
   <span class="sp"></span>
   <span id="pill" class="hide-m" data-state="offline" role="status" aria-live="polite">probing</span>
@@ -183,7 +183,7 @@ body:has(>#chat-open.fab:not([hidden])) #bar{padding-right:104px}
   <aside id="side" aria-label="Controls">
     <div id="side-head"><button class="grab" id="side-grab" type="button" aria-label="Resize the controls" aria-controls="side"></button><span class="gl">Controls</span><button class="pbtn" id="side-done" type="button">Done</button></div>
     <div id="mobslot"></div>
-    <div id="v3d-mini" role="button" tabindex="0" aria-label="Open the 3D view" data-tip="Open the full 3D view of this galaxy cluster (±4 Mpc to ±15 kpc BCG core)"><span class="mini-art"></span><div id="v3d-mini-host"></div></div>
+    <div id="v3d-mini" role="button" tabindex="0" aria-label="Open the 3D view" data-tip="Open the full 3D view of this galaxy cluster"><span class="mini-art"></span><div id="v3d-mini-host"></div></div>
     <section class="glass card" aria-labelledby="h-inst"><h2 id="h-inst">Instrument</h2>
       <div id="rsliders"></div>
       <label class="ctl"><span class="k">S/N<sub class="sn1lab" hidden>1</sub></span><input type="range" id="sn-0" data-testid="sn-0" aria-label="S/N" data-tip="Signal-to-noise per resolution element (one FWHM = c/R)"><output id="sn-0-out" for="sn-0"></output></label>
@@ -253,13 +253,13 @@ body:has(>#chat-open.fab:not([hidden])) #bar{padding-right:104px}
   <ul id="gxy-list" role="listbox" aria-label="Clusters" data-testid="galaxy-list"></ul>
   <div class="galf"><span class="msg">TNG-Cluster (352 halos), SIMBA-100 (10 massive clusters) and TNG300-1 (20 clusters &amp; groups) at z = 0</span><span id="gxy-count"></span></div></div>
 <div class="pop" id="ion-pop" role="dialog" aria-label="Lines" hidden><div id="ion-list"></div>
-  <div class="pbtns"><button id="ion-all" type="button">All</button><button id="ion-none" type="button" data-tip="Keep only the top line">One</button><button id="ion-default" type="button" data-tip="Back to the default X-ray &amp; hot coronal ICM set of lines">Default</button><button id="ion-hot-icm" type="button" data-testid="ion-hot-icm" data-tip="X-ray, EUV &amp; hot coronal ICM lines (O VII 21.6 Å, Ne VIII 770 Å, O VI 1032 Å, N V 1239 Å, H I 1216 Å)">X-ray / Hot ICM</button><button id="ion-cool-core" type="button" data-testid="ion-cool-core" data-tip="BCG cool-core &amp; ram-pressure stripped jellyfish tail lines (H I 1216 Å, C III 977 Å, Si III 1206 Å, C II 1335 Å, Mg II 2796 Å)">Cool-Core / Tails</button></div></div>
+  <div class="pbtns"><button id="ion-all" type="button">All</button><button id="ion-none" type="button" data-tip="Keep only the top line">One</button><button id="ion-default" type="button" data-tip="Back to the default X-ray &amp; hot coronal ICM set of lines">Default</button><button id="ion-hot-icm" type="button" data-testid="ion-hot-icm" data-tip="Hot coronal ICM lines (O VII, Ne VIII, O VI)">X-ray / Hot ICM</button><button id="ion-cool-core" type="button" data-testid="ion-cool-core" data-tip="BCG cool-core and stripped tail lines (H I, C III, Mg II)">Cool-Core / Tails</button></div></div>
 <div class="pop" id="dl-menu" role="menu" hidden><button id="dlpng" type="button" role="menuitem" data-tip="Figure from the server when online, else the screen as shown">PNG</button><button id="dlpdf" type="button" role="menuitem" data-tip="Vector figure from the sightline server; its noise differs from the screen">Publication PDF</button></div>
 <div class="pop" id="geo-pop" role="dialog" aria-label="New sightline" hidden><h3>New sightline</h3>
   <form id="geo" novalidate>
     <fieldset><legend>Orientation</legend><div class="radios">
       <label><input type="radio" name="orient" value="face-on" data-tip="Ray along the cluster principal axis (face-on)"> face-on</label><label><input type="radio" name="orient" value="edge-on" checked data-tip="Ray in the cluster midplane (edge-on)"> edge-on</label><label><input type="radio" name="orient" value="random" data-tip="Ray in a random direction, set by the seed"> random</label></div></fieldset>
-    <div class="field"><label for="gb">b [kpc]</label><input id="gb" data-tip="Impact parameter: projected distance from the cluster BCG centre, kpc (0 to 4000 kpc)" type="number" min="0" max="4000" step="1" value="100" inputmode="numeric"></div>
+    <div class="field"><label for="gb">b [kpc]</label><input id="gb" data-tip="Impact parameter: projected distance from the cluster centre, kpc" type="number" min="0" max="4000" step="1" value="100" inputmode="numeric"></div>
     <div class="field"><label for="gaz">Φ [deg]</label><input id="gaz" data-tip="Azimuth from the projected major axis, degrees" type="number" min="0" max="359" step="1" value="90" inputmode="numeric"></div>
     <div class="field"><label for="gseed">seed</label><input id="gseed" data-tip="Seed for the random direction; same seed gives the same direction" type="number" min="0" max="4294967295" step="1" value="1" inputmode="numeric" disabled></div>
     <button id="submit" class="go" type="submit" data-tip="Load from the library, or cast on the sightline server">Load or generate</button>
@@ -299,6 +299,6 @@ window.TNG_DATA = DATA;
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", all); else all();
 })();
 </script>
-<script type="module" src="js/app.js?v=20261123c"></script>
+<script type="module" src="js/app.js?v=20261123d"></script>
 </body>
 </html>

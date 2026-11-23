@@ -10,6 +10,13 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+try:
+    import huggingface_hub  # noqa: F401
+except ModuleNotFoundError:
+    _hf_stub = types.ModuleType("huggingface_hub")
+    _hf_stub.CommitOperationAdd = lambda path_in_repo, path_or_fileobj: types.SimpleNamespace(path_in_repo=path_in_repo, path_or_fileobj=path_or_fileobj)
+    _hf_stub.HfApi = lambda token=None: None
+    sys.modules["huggingface_hub"] = _hf_stub
 spec = importlib.util.spec_from_file_location("upload_viz_dataset", ROOT / "deploy" / "data" / "upload_viz_dataset.py")
 UP = importlib.util.module_from_spec(spec); spec.loader.exec_module(UP)
 SECRET = "hf_TESTSECRETtokenDoNotPrint0123456789"
@@ -185,7 +192,7 @@ def test_hf_errors_are_reduced_and_token_never_printed(viz, tmp_path, monkeypatc
     assert str(ei.value) == "HF 401: Unauthorized" and ei.value.__cause__ is None and ei.value.__suppress_context__
 
     # the CLI end to end with a fake huggingface_hub.HfApi that fails: exit 2, short message, no token anywhere
-    import huggingface_hub
+    huggingface_hub = pytest.importorskip("huggingface_hub")
     monkeypatch.setattr(huggingface_hub, "HfApi", lambda token=None: FakeApi(fail=Boom()))
     monkeypatch.setenv("HF_TOKEN", SECRET)
     assert UP.main(["--viz", str(viz), "--no-verify"]) == 2
@@ -199,6 +206,7 @@ def test_hf_errors_are_reduced_and_token_never_printed(viz, tmp_path, monkeypatc
 
 
 def test_dry_run_needs_no_token(viz, monkeypatch, capsys):
+    pytest.importorskip("huggingface_hub")
     monkeypatch.delenv("HF_TOKEN", raising=False)
     monkeypatch.setattr(UP, "DEFAULT_TOKEN_FILE", Path("/nonexistent/token"))
     assert UP.main(["--viz", str(viz), "--dry-run"]) == 0
@@ -208,6 +216,7 @@ def test_dry_run_needs_no_token(viz, monkeypatch, capsys):
 
 
 def test_superseded_cubes_get_their_own_reason(viz, monkeypatch, capsys):
+    pytest.importorskip("huggingface_hub")
     old = viz / "gas" / "L1" / "nH.ffffffffffff.p0.webp"                 # an older build, still on disk
     old.write_bytes(b"RIFFold")
     p = UP.plan(viz)
@@ -220,7 +229,7 @@ def test_superseded_cubes_get_their_own_reason(viz, monkeypatch, capsys):
 
 
 def test_dry_run_prune_only_lists(viz, monkeypatch, capsys):
-    import huggingface_hub
+    huggingface_hub = pytest.importorskip("huggingface_hub")
     p = UP.plan(viz)
     remote = {r: (1, "a" * 64, None) for r, _ in p["items"]}
     remote["stars/S2/gri.ffffffffffff.rgba.gz"] = (1, "b" * 64, None)

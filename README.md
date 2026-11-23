@@ -153,6 +153,7 @@ python3 -m http.server 8000 --directory docs
 ## Credits &amp; License
 
 - **Code:** Released under the [MIT License](LICENSE) (© 2026 Tanmay Singh). Third-party notices are documented in [`THIRD_PARTY_LICENSES`](THIRD_PARTY_LICENSES).
+- **Music ("How a Spectrum is Made"):** Hans Zimmer, Day One (Interstellar, 2014); Beethoven, Symphony No. 7, II. Allegretto.
 - **Simulations:**
   - **TNG-Cluster &amp; TNG300-1:** IllustrisTNG Collaboration ([Nelson et al. 2024, *A&amp;A* 686, A157](https://doi.org/10.1051/0004-6361/202348608); [Nelson et al. 2019, *ComAC* 6, 2](https://doi.org/10.1186/s40668-019-0028-x); [Pillepich et al. 2018, *MNRAS* 475, 648](https://doi.org/10.1093/mnras/stx3112); [Springel et al. 2018, *MNRAS* 475, 676](https://doi.org/10.1093/mnras/stx3304)).
   - **SIMBA-100:** SIMBA Collaboration ([Davé et al. 2019, *MNRAS* 486, 2827](https://doi.org/10.1093/mnras/stz937)).
