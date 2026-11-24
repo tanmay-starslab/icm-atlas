@@ -1,6 +1,4 @@
-// Pure data helpers for the Phase-2b 3D viewer (design §5.1): the tng50-viz/2 manifest, WebP atlas -> raw cube
-// bytes, gzip, SHA-256, u8 decoding, the LOD policy and the Lupton et al. (2004) asinh composite.
-// No DOM and no three.js: everything here also runs in node (tests/js/viz_decode.mjs, lod_policy.mjs, lupton_parity.mjs).
+// Pure data helpers for the 3D viewer: tng50-viz/2 manifest, atlas decode, gzip, SHA-256, LOD policy, Lupton, derived fields.
 import {
   initFastVizWasm, wasmReady, wasm_cast_cube_ray, wasm_synthesize_voigt_12ions,
   wasm_decode_lut_volume, wasm_pack_velocity
@@ -11,8 +9,6 @@ export const SCHEMA = "tng50-viz/2";
 export const ION_KEYS = ["HI", "MgII", "SiII", "CII", "SiIII", "CIII", "SiIV", "CIV", "NV", "OVI", "NeVIII", "OVII"];
 export const GAS_KEYS = ["nH", "T", "Z"];
 export const VOL_KEYS = [...GAS_KEYS, ...ION_KEYS];
-/* Fallback copy of the registry fields the 3D menu needs (tngsight/ions.json: key, ion, label, color, color_dark), used
-   only when the page config carries no CFG.ions (a v2 page); tests/js/viz_decode.mjs checks it against ions.json */
 export const ION_FALLBACK = [
   ["HI", "H I", "H I 1216", "#4338CA", "#9293F8"], ["MgII", "Mg II", "Mg II 2796", "#1D4ED8", "#6EA8FE"],
   ["SiII", "Si II", "Si II 1260", "#0369A1", "#4FB3E8"], ["CII", "C II", "C II 1335", "#0E7490", "#3CC5D9"],
@@ -23,9 +19,6 @@ export const ION_FALLBACK = [
 ].map(([key, ion, label, color, color_dark]) => ({key, ion, label, color, color_dark}));
 const GAS_META = {nH: {label: "nH", long: "hydrogen density nH"}, T: {label: "T", long: "temperature (nH-weighted)"}, Z: {label: "Z", long: "metallicity (nH-weighted)"}};
 
-/* The 3D species menu: nH, T, Z, then the ions in registry (ladder) order with their registry colours. `ions` is the
-   page's CFG.ions (any order; sorted by `order` when present) or null for the fallback copy. A species is `available`
-   only when the manifest has its cubes; the others carry the reason (shown as the disabled button's tooltip). Pure. */
 export function speciesList(ions, manifest) {
   const reg = Array.isArray(ions) && ions.length ? [...ions].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : ION_FALLBACK;
   const have = k => !!manifest?.gas?.fields?.[k]?.cubes;
@@ -38,13 +31,7 @@ export function speciesList(ions, manifest) {
       color_dark: i.color_dark || i.color || null, available: have(i.key), reason: have(i.key) ? "" : !manifest ? why(i.key) : `${ion} cubes are not built yet`}); }
   return out;
 }
-/* vel3d: the gas velocity vector. Three gas fields vx, vy, vz (kind "velocity", encoding "linear", disk frame xhat, yhat,
-   Lhat, relative to SubhaloVel) named by the manifest block gas.vectors.v. The viewer packs them into one RGBA cube per
-   level and derives five views per sample, every frame (raymarch.js velQ): v_los and σ_los follow the camera ray. */
 export const VEL_COMP_KEYS = ["vx", "vy", "vz"];
-/* q of each view in the shader (raymarch uVq); signed views use a diverging LUT, with words at the legend's ends (v_los:
-   relative to you, the camera, so the reference frame is on screen); `spoken` names the view in plain text (radio
-   aria-label, status line, announcements, thumbnail tag), where the compact `label` would read like a typo */
 export const VEL_VIEWS = [
   {key: "vlos", q: 1, signed: true, label: "v los", spoken: "line-of-sight velocity", html: "v<sub>los</sub>", long: "line-of-sight velocity, along the camera ray", words: ["toward you", "away from you"]},
   {key: "vr", q: 2, signed: true, label: "v r", spoken: "radial velocity", html: "v<sub>r</sub>", long: "radial velocity", words: ["inflow", "outflow"]},
@@ -128,10 +115,6 @@ export function encodeLinear(v, V) {   // the inverse (tests): NaN -> 0 (empty),
   for (let i = 0; i < v.length; i++) { const x = v[i]; out[i] = Number.isFinite(x) ? 1 + Math.round((Math.min(V, Math.max(-V, x)) + V) / (2 * V) * 254) : 0; }
   return out;
 }
-/* CPU packing of the three component cubes into one RGBA cube (4n³ bytes): R, G, B = q of vx, vy, vz, A = 255 where
-   non-empty. Empty voxels are packed as q = 128 (0 km/s) with A = 0, so the hardware trilinear blend of R, G, B decodes
-   (the decoding is affine) to Σ wᵢ vᵢ over the non-empty corners and the blended A is Σ wᵢ: v = blend / A is the mean
-   over the non-empty corners on both the fast and the exact shader path. */
 export function packVelocity(qx, qy, qz) {
   const N = qx.length; if (qy.length !== N || qz.length !== N) throw new Error("packVelocity: the component cubes differ in size");
   if (wasmReady() && qx instanceof Uint8Array && qy instanceof Uint8Array && qz instanceof Uint8Array && N >= 64) {
@@ -144,9 +127,6 @@ export function packVelocity(qx, qy, qz) {
     else { out[o] = a; out[o + 1] = b; out[o + 2] = c; out[o + 3] = 255; } }
   return out;
 }
-/* the derived quantity of one sample, as the shader computes it: v (km/s, disk frame), p (disk-frame kpc), d (unit camera
-   ray direction, disk frame). vlos > 0 moves away from the camera (redshift, the spectra's sign); vr > 0 outflow;
-   vphi > 0 co-rotation (about +Lhat = ẑ); vmag the speed. sigmalos per sample is dot(v, d) (its moment 2 is taken along the ray). */
 export function velQuantity(key, v, p, d) {
   const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
   if (key === "vlos" || key === "sigmalos") return dot(v, d);
@@ -179,10 +159,6 @@ const isObj = x => x !== null && typeof x === "object" && !Array.isArray(x);
 const isHex = (x, n) => isStr(x) && new RegExp(`^[0-9a-f]{${n}}$`).test(x);
 const isVec = (x, n) => Array.isArray(x) && x.length === n && x.every(isNum);
 
-/* final: a timeout, so a ?viz= host that accepts the connection and never answers ends in an error (and a stage message)
-   instead of a 3D tab that stays blank. opts.fetchText(url, timeoutMs) -> text is the page's network helper (vizload.js
-   fetchText, i.e. netFetch with its stall timer); without it, a plain fetch with an AbortController deadline (node, tests).
-   The error carries .timeout or .network, so the caller can tell an unreachable host from a bad manifest. */
 export async function loadManifestV2(url, {timeoutMs = 10000, fetchText = null} = {}) {
   let host = "the host"; try { host = new URL(url).host; } catch { /* keep */ }
   let txt;
