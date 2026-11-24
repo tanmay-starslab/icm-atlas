@@ -7,7 +7,7 @@
    only after their sha256 checked out, a cached copy that fails the check is deleted and refetched once (FE-03), and
    cache.put no longer delays the first display (FE-04); the atlas decode, atlasToRaw and the hash run in a worker when
    one can be started (FE-10); a fallback base that answers 404 for everything is not tried again (FE-15) */
-import {atlasToRaw, cubeRef, cubeUrls, gunzipIfNeeded, sha256Hex, packVelocity} from "./vizdata.js?v=20261123e";
+import {atlasToRaw, cubeRef, cubeUrls, gunzipIfNeeded, sha256Hex, packVelocity} from "./vizdata.js?v=20261123f";
 
 const CACHE = "tng50-viz-v3";
 export const STALL_MS = 20000;
@@ -66,7 +66,7 @@ export async function fetchText(url, timeoutMs = 10000) {
 
 let _gl = null, _glFailed = false;
 function getDecodeGL() {
-  if (_glFailed) return null;
+  if (_glFailed || typeof document === "undefined") return null;
   if (_gl && !_gl.isContextLost?.()) return _gl;
   try {
     const cv = typeof OffscreenCanvas !== "undefined" ? new OffscreenCanvas(1, 1)
@@ -113,23 +113,22 @@ export async function decodeAtlas(blobs, n, kind) {
   const raw = atlasToRaw(parts, n, kind);
   return {raw, sha: await sha256Hex(raw)};
 }
-/* FE-10: the same in a 2-worker pool (decode_worker.js), so gas and star cubes decode in parallel off the main thread;
-   any worker failure falls back to decodeAtlas on this thread */
-const dPool = []; let dN = 0, dBroken = false; const dP = new Map();
+/* FE-10: the same in a worker (decode_worker.js), so gas and star cubes decode off the main thread;
+   each worker is terminated after its cube finishes so its WebGL2 decode context and memory are freed at once */
+let dBroken = false;
 function decodeOffThread(blobs, n, kind) {
   if (dBroken || typeof Worker === "undefined" || typeof OffscreenCanvas === "undefined" || typeof document === "undefined") return decodeAtlas(blobs, n, kind);
-  try {
-    if (dPool.length < 2) {
-      const w = new Worker(new URL("./decode_worker.js", import.meta.url), {type: "module"});
-      w.onmessage = ev => { const p = dP.get(ev.data.id); dP.delete(ev.data.id); if (!p) return;
-        if (ev.data.error) p.reject(Object.assign(new Error(ev.data.error), {decode: true})); else p.resolve({raw: new Uint8Array(ev.data.raw), sha: ev.data.sha}); };
-      w.onerror = ev => { ev.preventDefault?.(); dBroken = true; dPool.length = 0; const ps = [...dP.values()]; dP.clear();
-        for (const p of ps) decodeAtlas(p.blobs, p.n, p.kind).then(p.resolve, p.reject); };
-      dPool.push(w);
-    }
-    const id = ++dN, dW = dPool[id % dPool.length];
-    return new Promise((resolve, reject) => { dP.set(id, {resolve, reject, blobs, n, kind}); dW.postMessage({id, blobs, n, kind}); });
-  } catch { dBroken = true; return decodeAtlas(blobs, n, kind); }
+  return new Promise((resolve, reject) => {
+    let w;
+    try { w = new Worker(new URL("./decode_worker.js", import.meta.url), {type: "module"}); }
+    catch { dBroken = true; decodeAtlas(blobs, n, kind).then(resolve, reject); return; }
+    w.onmessage = ev => { w.terminate();
+      if (ev.data.error) reject(Object.assign(new Error(ev.data.error), {decode: true}));
+      else resolve({raw: new Uint8Array(ev.data.raw), sha: ev.data.sha}); };
+    w.onerror = ev => { ev.preventDefault?.(); w.terminate(); dBroken = true;
+      decodeAtlas(blobs, n, kind).then(resolve, reject); };
+    w.postMessage({id: 1, blobs, n, kind});
+  });
 }
 
 /* {manifest, base, fallbackBase, cache=true, stallMs} -> {load(kind, key, level) -> {data, n, bytes, format, base, ms, decodeMs}, prune()} */

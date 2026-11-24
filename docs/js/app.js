@@ -5,19 +5,19 @@
 // Rendering is in spectra.js, the instrument sliders in instrument.js, the sightline picker in gallery.js and the
 // pure state (hash, slider maps, validation) in state.js.
 import {makeRegistry, cloneState, casesFor, bandsOf, clampView, parseHash, formatHash, instrumentPatch, ID_RE, LAYOUTS,
-  fmtR, fmtNum, minus, nf, annotateLimits, fitClass, fitLimits} from "./state.js?v=20261123e";
-import {createSpectra} from "./spectra.js?v=20261123e";
-import {createGallery, kindOf, nShow, sightLabel, sightTip, copyText} from "./gallery.js?v=20261123e";
-import {createInstrument} from "./instrument.js?v=20261123e";
-import * as FITM from "./fit.js?v=20261123e";
-import {initTips, ION_TIPS} from "./tips.js?v=20261123e";
-import {initFeatures} from "./features.js?v=20261123e";   /* ux4 features: share, keys, random, undo, solo, CSV, loading */
-import {initLiquidTabs, initLiquidSeg, initLiquidButtons} from "./liquidtabs.js?v=20261123e";   /* CSS-only liquid drop (tabs, segmented rows) and glossy top-bar buttons */
-import {initLiquidBg} from "./liquidbg.js?v=20261123e";   /* liquid metal shader background (3D tab; Spectra only with SPECTRA_BG) */
-import {uiSound, sfx} from "./uisound.js?v=20261123e";   /* optional UI sound effects (off by default; top-bar switch #sfx) */
+  fmtR, fmtNum, minus, nf, annotateLimits, fitClass, fitLimits} from "./state.js?v=20261123f";
+import {createSpectra} from "./spectra.js?v=20261123f";
+import {createGallery, kindOf, nShow, sightLabel, sightTip, copyText} from "./gallery.js?v=20261123f";
+import {createInstrument} from "./instrument.js?v=20261123f";
+import * as FITM from "./fit.js?v=20261123f";
+import {initTips, ION_TIPS} from "./tips.js?v=20261123f";
+import {initFeatures} from "./features.js?v=20261123f";   /* ux4 features: share, keys, random, undo, solo, CSV, loading */
+import {initLiquidTabs, initLiquidSeg, initLiquidButtons} from "./liquidtabs.js?v=20261123f";   /* CSS-only liquid drop (tabs, segmented rows) and glossy top-bar buttons */
+import {initLiquidBg} from "./liquidbg.js?v=20261123f";   /* liquid metal shader background (3D tab; Spectra only with SPECTRA_BG) */
+import {uiSound, sfx} from "./uisound.js?v=20261123f";   /* optional UI sound effects (off by default; top-bar switch #sfx) */
 import {galaxyIndex, resolveGalaxy, parseGalaxy, galaxyHashPart, packFor, createGalaxyPicker, galaxyTip, unlistedGalaxy,
-  nearestSightline, defaultSightline, srcOf, galaxySummary, normId, isFire, inferSim, inferSimKey, galNoun, shortClusterId, SIM_META, SIM_ORDER} from "./galaxies.js?v=20261123e";
-import {tier, tierReady} from "./tier.js?v=20261123e";   /* perf R5: device tier (html[data-tier]) and its one-off WebGL probe */
+  nearestSightline, defaultSightline, srcOf, galaxySummary, normId, isFire, inferSim, inferSimKey, galNoun, shortClusterId, SIM_META, SIM_ORDER} from "./galaxies.js?v=20261123f";
+import {tier, tierReady} from "./tier.js?v=20261123f";   /* perf R5: device tier (html[data-tier]) and its one-off WebGL probe */
 const {degradeV, decodeTNGS, seedFor, cacheKey, fitPanel, FIT_VERSION, FIT_PARAMS} = FITM;
 
 /* ---------------- config ---------------- */
@@ -25,7 +25,7 @@ const CFG = Object.assign({
   version: 3, catalog_url: "data/catalog.json", bin_dir: "data/s/", backends: ["http://127.0.0.1:8787"],
   galaxy: {sim: "TNG50-1", snapshot: 99, redshift: 0, subhalo_id: 488530}, ions: [], bands: {}, snr: {min: 2, max: 100, default: 10, pair: [20, 5]},
   defaults: {id: "edge_b100_a090"}, viz: null, components_url: "data/components.json", three: "0.169.0", js_base: "js/",
-  chat: {enabled: false}, custom: {r_max_kpc: 4000, l_min_kpc: 20, l_max_kpc: 8000}, fitter: {worker: "js/fitworker.js?v=20261123e", version: "fit/1"}
+  chat: {enabled: false}, custom: {r_max_kpc: 4000, l_min_kpc: 20, l_max_kpc: 8000}, fitter: {worker: "js/fitworker.js?v=20261123f", version: "fit/1"}
 }, window.TNG_DATA || {});
 const reg = makeRegistry(CFG), {ION} = reg;
 /* galaxy sample (js/galaxies.js): GIX is the picker index (null with one galaxy: no picker, nothing changes), GAL the
@@ -1215,13 +1215,13 @@ function methodsText(sbi) {
     const pv = document.createElement("p"); pv.id = "methods-source"; pv.hidden = true; ag.after(pv); MEL.src = pv; }
   const sk = activeSimKey();
   const SBI_TXT = {
-    tau: "Optical depths from a GPU Voigt renderer (fp64) at 0.5 km/s over ±1500 km/s, resampled by velocity; 120-ray cluster sightlines spanning ±4 Mpc (up to ±2 R200c). Velocities are relative to the cluster's systemic velocity.",
-    ions: "Spectra: 120-ray cluster sightlines traced through the Voronoi mesh by THOR (Byrohl & Nelson 2025, arXiv:2507.11603), ion fractions from CLOUDY (Ferland et al. 2017) with the FG11 UV/X-ray background (Faucher-Giguère et al. 2009) and Rahmati et al. (2013) self-shielding for H I. 5-level 3D ICM cubes cover ±4 Mpc (L0, 31.25 kpc voxels) → ±1 Mpc (L1, 7.8 kpc) → ±250 kpc (L2, 1.95 kpc) → ±62.5 kpc (L3, 488 pc) → ±15 kpc (L4, 117 pc BCG core), plus BCG and satellite starlight cubes S0..S4.",
+    tau: "Optical depths from a GPU Voigt renderer (fp64) at 0.5 km/s over ±1500 km/s, resampled by velocity; structure-targeted multiphase 120-ray cluster sightlines spanning ±4 Mpc (default R X-ray = 3,000, Δv = 100 km/s; R UV/EUV = 30,000, Δv = 10 km/s). Velocities are relative to the cluster's systemic velocity.",
+    ions: "Spectra: structure-targeted multiphase 120-ray cluster sightlines (40 coronal X-ray O VII / Ne VIII filaments, 35 warm-hot O VI / N V / C IV ram-pressure stripped tails, 30 cool-core BCG / jellyfish / satellite subhalo clumps, 15 virial cavity baseline rays) traced through the Voronoi mesh by THOR (Byrohl & Nelson 2025, arXiv:2507.11603) with Springel & Hernquist (2003) eEOS cold-phase reconstruction, CLOUDY (Ferland et al. 2017) FG11 UV/X-ray background tables (Faucher-Giguère et al. 2009), and Rahmati et al. (2013) H I self-shielding. 5-level 3D ICM cubes cover ±4 Mpc (L0, 31.25 kpc voxels) → ±1 Mpc (L1, 7.8 kpc) → ±250 kpc (L2, 1.95 kpc) → ±62.5 kpc (L3, 488 pc) → ±15 kpc (L4, 117 pc BCG core), plus BCG and satellite starlight cubes S0..S4.",
     atomic: "Atomic data: the profile components (H I Lyα Γ = 6.265 × 10⁸ s⁻¹, Wiese and Fuhr 2009; O VII 21.602 Å from Verner et al. 1996); the catalogue fits and your in-browser refits use the same f and Γ. Saturated components are lower limits."};
   const SIM_IONS = {
-    tngcluster: "120-ray sightlines traced through the TNG-Cluster Voronoi mesh with THOR (Byrohl & Nelson 2025) and CLOUDY FG11 ionisation tables (plus Trident HM2012 5-level 3D ICM cubes from ±4 Mpc L0 to ±15 kpc L4 BCG cores).",
+    tngcluster: "Structure-targeted multiphase 120-ray sightlines (40 coronal X-ray O VII / Ne VIII filaments, 35 warm-hot O VI / N V / C IV stripped tails, 30 cool-core BCG / jellyfish / satellite clumps, 15 virial cavity baseline rays) traced through the TNG-Cluster Voronoi mesh with THOR (Byrohl & Nelson 2025), Springel & Hernquist (2003) eEOS cold-phase reconstruction, and CLOUDY FG11 ionisation tables.",
     simba100: "H I: SIMBA-100 neutral hydrogen fraction (self-shielding included); metal ions: Trident HM2012 UV/X-ray background table with tracked SIMBA element abundances across ±4 Mpc cluster cutouts.",
-    tng300: "120-ray sightlines traced through the TNG300-1 Voronoi mesh with THOR (Byrohl & Nelson 2025) and CLOUDY FG11 ionisation tables across ±4 Mpc cluster volumes.",
+    tng300: "Structure-targeted multiphase 120-ray sightlines traced through the TNG300-1 Voronoi mesh with THOR (Byrohl & Nelson 2025), Springel & Hernquist (2003) eEOS cold-phase reconstruction, and CLOUDY FG11 ionisation tables across ±4 Mpc cluster volumes.",
     fire2: "H I: FIRE-2 neutral hydrogen fraction (self-shielding included); metal ions: Trident HM2012 table with tracked FIRE-2 element abundances.",
     simba: "H I: SIMBA neutral hydrogen fraction (self-shielding included); metal ions: Trident HM2012 table with tracked SIMBA element abundances.",
     agora: "H I: AGORA AREPO neutral hydrogen fraction (self-shielding included); metal ions: Trident HM2012 table with tracked metallicity.",
