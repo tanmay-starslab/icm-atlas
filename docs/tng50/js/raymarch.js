@@ -175,6 +175,7 @@ void main() {
   vec3 gHave = velMode ? min(uVelHave, uWHave) : uGasHave;
   bool gasOn = uGasMix > 0.0 && (gHave.x + gHave.y + gHave.z) > 0.0, starOn = uStarMix > 0.0 && (uStarHave.x + uStarHave.y + uStarHave.z) > 0.0;
   bool weighted = !velMode && uKind == 1 && uMode == 0;
+  bool emisMode = !velMode && uMode == 2;
   float num2 = 0.0, wspan = max(uWWin.y - uWWin.x, 1e-6);
   /* TF mode: volume mode of a scalar gas field with the transfer function uTF instead of the fixed ramp; tfW: the
      emissivity weight (uW*, e.g. n_H) scales the emitted colour by (w / 10^uWRef)^uGamma */
@@ -193,7 +194,7 @@ void main() {
   for (int s = 0; s < 5; s++) {
     float ta = bp[s], tl = bp[s + 1] - ta; if (tl <= 1e-5) continue;
     vec3 pm = o + d * (ta + 0.5 * tl);
-    int lg = gasOn ? pick(gHave, pm, 3) : -1, lw = (weighted || tfW) ? pick(uWHave, pm, 3) : -1, ls = starOn ? pick(uStarHave, pm, 3) : -1;
+    int lg = gasOn ? pick(gHave, pm, 3) : -1, lw = (weighted || tfW || emisMode) ? pick(uWHave, pm, 3) : -1, ls = starOn ? pick(uStarHave, pm, 3) : -1;
     float fp = uPxAng * max(length(pm - o), 1.0), mg = 1.0, mw = 1.0, ms = 1.0; int cg = -1, cw = -1, cs = -1;
     lg = lodLevel(gHave, pm, lg, fp, uLodC.x, cg, mg); lw = lodLevel(uWHave, pm, lw, fp, uLodC.x, cw, mw);
     ls = lodLevel(uStarHave, pm, ls, fp, uLodC.y, cs, ms);
@@ -212,7 +213,7 @@ void main() {
         float w = wVal(p, lg); vec4 m = velVal(p, lg); if (cg >= 0) { w = mix(wVal(p, cg), w, mg); m = mix(velVal(p, cg), m, mg); }
         if (w > 0.0 && m.w > 1e-3) {
           float qv = velQ(m.xyz / m.w, p, d);
-          if (uMode == 0) { float ww = w * hw; num += ww * qv; num2 += ww * qv * qv; den += ww; }
+          if (uMode == 0 || uMode == 2) { float ww = (uMode == 2 ? w * w : w) * hw; num += ww * qv; num2 += ww * qv * qv; den += ww; sumG += w * hw; }
           else { float xw = clamp((log2(w) / LOG2_10 - uWWin.x) / wspan, 0.0, 1.0);   /* opacity from the weight's volume window */
             if (xw > 0.0) { float a = 1.0 - exp(-kappa * xw * xw * hw); C += (1.0 - A) * a * lutc((qv - uWin.x) / span); A += (1.0 - A) * a; } }
         }
@@ -221,6 +222,15 @@ void main() {
         if (uMode == 0) {
           if (weighted) { float w = lw >= 0 ? wVal(p, lw) : 0.0; if (lw >= 0 && cw >= 0) w = mix(wVal(p, cw), w, mw); num += w * v * hw; den += w * hw; }
           else sumG += v * hw;
+        } else if (uMode == 2) {
+          if (uKind == 4) sumG += v * hw;
+          else {
+            float w = lw >= 0 ? wVal(p, lw) : 0.0; if (lw >= 0 && cw >= 0) w = mix(wVal(p, cw), w, mw);
+            if (uKind == 1) { float ww = w * w * hw; num += ww * v; den += ww; }
+            else if (uKind == 2) sumG += w * w * sqrt(max(v, 0.0)) * hw;
+            else if (uKind == 3) sumG += v * v * sqrt(max(w, 0.0)) * hw;
+            else sumG += w * v * hw;
+          }
         } else if (tfMode) {
           /* THOR: C = ∫ c μ exp(−∫ μ) ds, front to back. Per step μ = kappa alpha_TF (kappa = uVolK opacity² per kpc,
              as the ramp's kappa x²), opacity a = 1 − exp(−μ h) (= μ h for thin steps), emission (1 − A) a c W with W the
@@ -257,10 +267,12 @@ void main() {
       /* vel3d integral: the weight-weighted mean of the view along the ray (moment 1), or for σ_los the weighted dispersion
          of dot(v, d), sqrt(moment 2 − moment 1²); it fades into the background below the weight column floor uWWin.x */
       float m1 = den > 0.0 ? num / den : 0.0, qv = uVq == 5 ? (den > 0.0 ? sqrt(max(num2 / den - m1 * m1, 0.0)) : 0.0) : m1;
-      float lc = den > 0.0 ? log2(den) / LOG2_10 + LOG10_CM_PER_KPC : -1e30;
+      float colW = uMode == 2 ? sumG : den;
+      float lc = colW > 0.0 ? log2(colW) / LOG2_10 + LOG10_CM_PER_KPC : -1e30;
       gas = mix(uBg, lutc((qv - uWin.x) / span), smoothstep(uWWin.x - max(uFadeDex, 1e-3), uWWin.x, lc));
     } else {
-      float lv = weighted ? (den > 0.0 && num > 0.0 ? log2(num / den) / LOG2_10 : -1e30) : (sumG > 0.0 ? log2(sumG) / LOG2_10 + LOG10_CM_PER_KPC : -1e30);
+      bool useMean = weighted || (emisMode && uKind == 1);
+      float lv = useMean ? (den > 0.0 && num > 0.0 ? log2(num / den) / LOG2_10 : -1e30) : (sumG > 0.0 ? log2(sumG) / LOG2_10 + LOG10_CM_PER_KPC : -1e30);
       float x = (lv - uWin.x) / span;
       /* tune1: columns below the window fade from LUT(0) into the background over uFadeDex dex (soft floor), so
          empty / masked regions (Σ = 0) leave no silhouette and sparse regions have no hard staircase edge */
