@@ -4,7 +4,8 @@
 import {readFileSync} from "node:fs";
 import {join, dirname} from "node:path";
 import {fileURLToPath} from "node:url";
-import {GAS_LEVELS, STAR_LEVELS, SMOOTH, STAR_COMP, STAR_ZOOM, validateManifestV2, viewPlan, cubeRef} from "../../docs/tng50/js/vizdata.js";
+import {GAS_LEVELS, STAR_LEVELS, SMOOTH, STAR_COMP, STAR_ZOOM, validateManifestV2, viewPlan, cubeRef,
+  DERIVED_KEYS, derivedList, derivedMeta, coolingLambda, computeDerivedCube, decodeU8} from "../../docs/tng50/js/vizdata.js";
 import {FRAG} from "../../docs/tng50/js/raymarch.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url)), ROOT = join(HERE, "../..");
@@ -102,7 +103,49 @@ const M = JSON.parse(readFileSync(join(ROOT, "docs/tng50/data/viz/manifest_v2.js
   check(patched.includes("uniform float uDust;") && patched.includes("float starDustAt") &&
         patched.includes("exp(-1.15 * m") && patched.includes("transS = vec3(1.0)") &&
         patched.includes("/* dust patched */") && patched.includes("uGasW * dustT"),
-    "viewer3d.js shader patch anchors match raymarch.js FRAG cleanly without modifying raymarch.js"); }
+    "viewer3d.js shader patch anchors match raymarch.js FRAG cleanly without modifying raymarch.js");
+  check(vsrc.includes('value="emission"') && vsrc.includes('data-testid="v3-mode-emission"') &&
+        vsrc.includes("derivedList(manifest)") && vsrc.includes("computeDerivedCube(") &&
+        FRAG.includes("else if (uMode == 2)") && FRAG.includes("uKind == 2") && FRAG.includes("uKind == 3"),
+    "viewer3d.js & raymarch.js wire 3D Emission mode (uMode == 2) and zero-storage TEMET derived fields"); }
+
+/* ---- 5. Zero-storage TEMET cluster thermodynamic fields (Pth, K, EM, tcool, Mach) ---- */
+{ check(DERIVED_KEYS.join(",") === "Pth,K,EM,tcool,Mach", "DERIVED_KEYS lists all 5 TEMET cluster fields");
+  const dl = derivedList(M);
+  check(dl.length === 5 && dl.find(x => x.key === "Pth").available && dl.find(x => x.key === "K").available &&
+        dl.find(x => x.key === "EM").available && dl.find(x => x.key === "tcool").available,
+    "derivedList marks Pth, K, EM, tcool available when nH, T, Z cubes exist");
+  check(derivedList(null).every(x => !x.available && x.reason), "derivedList disables all 5 fields when manifest is null");
+  /* Synthetic voxel check: cool core (nH=0.05 cm^-3, T=10^7.2 K, Z=0.5 Z_sun, v=(500,0,0) km/s) vs shocked ICM (nH=1e-3, T=10^8 K, Z=0.3, v=(2000,0,0)) */
+  const encLog = (val, lo, hi) => 1 + Math.round((val - lo) / (hi - lo) * 254);
+  const encVel = (v, V) => 1 + Math.round((v + V) / (2 * V) * 254);
+  const rN = [-6, 2], rT = [3, 9], rZ = [-4, 1], V = 3000;
+  const inputs = {
+    nH: new Uint8Array([0, encLog(Math.log10(0.05), ...rN), encLog(-3, ...rN)]),
+    T:  new Uint8Array([0, encLog(7.2, ...rT), encLog(8.0, ...rT)]),
+    Z:  new Uint8Array([0, encLog(Math.log10(0.5), ...rZ), encLog(Math.log10(0.3), ...rZ)]),
+    vx: new Uint8Array([0, encVel(500, V), encVel(2000, V)]),
+    vy: new Uint8Array([0, encVel(0, V), encVel(0, V)]),
+    vz: new Uint8Array([0, encVel(0, V), encVel(0, V)]),
+  };
+  const ranges = {nH: rN, T: rT, Z: rZ, V};
+  const dec = (k, q) => { const m = derivedMeta(k); return decodeU8(q, m.vmin, m.vmax); };
+  const pth = dec("Pth", computeDerivedCube("Pth", inputs, ranges));
+  const ent = dec("K", computeDerivedCube("K", inputs, ranges));
+  const em  = dec("EM", computeDerivedCube("EM", inputs, ranges));
+  const tc  = dec("tcool", computeDerivedCube("tcool", inputs, ranges));
+  const ma  = dec("Mach", computeDerivedCube("Mach", inputs, ranges));
+  check(Number.isNaN(pth[0]) && Math.abs(pth[1] - Math.log10(2.3 * 0.05 * 10 ** 7.2)) < 0.08,
+    `Pth cool core = ${pth[1].toFixed(2)} log10(K cm^-3)`);
+  check(Number.isNaN(ent[0]) && ent[1] < Math.log10(30) && ent[2] > Math.log10(500),
+    `K separates cool core (${(10 ** ent[1]).toFixed(1)} keV cm^2) from shocked ICM (${(10 ** ent[2]).toFixed(0)} keV cm^2)`);
+  check(Number.isNaN(em[0]) && Math.abs(em[1] - (2 * Math.log10(0.05) + 0.5 * 7.2)) < 0.1,
+    `EM cool core = ${em[1].toFixed(2)} log10(cm^-6 K^1/2)`);
+  check(Number.isNaN(tc[0]) && tc[1] < 0 && tc[2] > 1.0 && coolingLambda(1e8, 0.3) > 1e-23,
+    `tcool cool core = ${(10 ** tc[1]).toFixed(2)} Gyr (< 1 Gyr), hot bulk = ${(10 ** tc[2]).toFixed(1)} Gyr`);
+  check(Number.isNaN(ma[0]) && Math.abs(10 ** ma[1] - 500 / (0.15267 * Math.sqrt(10 ** 7.2))) < 0.15 &&
+        10 ** ma[2] > 1.2,
+    `Mach cool core = ${(10 ** ma[1]).toFixed(2)}, supersonic shock = ${(10 ** ma[2]).toFixed(2)}`); }
 
 console.log(fails ? `\n${fails} check(s) FAILED` : "\nall checks passed");
 process.exit(fails ? 1 : 0);

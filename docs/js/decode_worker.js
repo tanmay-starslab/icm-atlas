@@ -1,6 +1,6 @@
 // Worker for the cube loader (fix-ui FE-10): WebP atlas parts -> createImageBitmap -> OffscreenCanvas -> atlasToRaw ->
 // sha256, off the main thread. In: {id, blobs, n, kind}; out: {id, raw (ArrayBuffer, transferred), sha} or {id, error}.
-import {decodeAtlas} from "./vizload.js?v=20261123f";
+import {decodeAtlas} from "./vizload.js?v=20261124a";
 let q = Promise.resolve();
 self.onmessage = ev => { const {id, blobs, n, kind} = ev.data;
   q = q.then(async () => {

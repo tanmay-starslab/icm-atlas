@@ -1,18 +1,14 @@
-// Pure data helpers for the Phase-2b 3D viewer (design §5.1): the tng50-viz/2 manifest, WebP atlas -> raw cube
-// bytes, gzip, SHA-256, u8 decoding, the LOD policy and the Lupton et al. (2004) asinh composite.
-// No DOM and no three.js: everything here also runs in node (tests/js/viz_decode.mjs, lod_policy.mjs, lupton_parity.mjs).
+// Pure data helpers for the 3D viewer: tng50-viz/2 manifest, atlas decode, gzip, SHA-256, LOD policy, Lupton, derived fields.
 import {
   initFastVizWasm, wasmReady, wasm_cast_cube_ray, wasm_synthesize_voigt_12ions,
   wasm_decode_lut_volume, wasm_pack_velocity
-} from "./fast_viz_wasm.js?v=20261123f";
+} from "./fast_viz_wasm.js?v=20261124a";
 export {initFastVizWasm, wasm_cast_cube_ray, wasm_synthesize_voigt_12ions, wasm_decode_lut_volume};
 export const SCHEMA = "tng50-viz/2";
 /* Phase 3: the gas fields are nH, T, Z plus the 12 registry ions in ladder order (tngsight.vizpack.VOL_KEYS) */
 export const ION_KEYS = ["HI", "MgII", "SiII", "CII", "SiIII", "CIII", "SiIV", "CIV", "NV", "OVI", "NeVIII", "OVII"];
 export const GAS_KEYS = ["nH", "T", "Z"];
 export const VOL_KEYS = [...GAS_KEYS, ...ION_KEYS];
-/* Fallback copy of the registry fields the 3D menu needs (tngsight/ions.json: key, ion, label, color, color_dark), used
-   only when the page config carries no CFG.ions (a v2 page); tests/js/viz_decode.mjs checks it against ions.json */
 export const ION_FALLBACK = [
   ["HI", "H I", "H I 1216", "#4338CA", "#9293F8"], ["MgII", "Mg II", "Mg II 2796", "#1D4ED8", "#6EA8FE"],
   ["SiII", "Si II", "Si II 1260", "#0369A1", "#4FB3E8"], ["CII", "C II", "C II 1335", "#0E7490", "#3CC5D9"],
@@ -23,9 +19,6 @@ export const ION_FALLBACK = [
 ].map(([key, ion, label, color, color_dark]) => ({key, ion, label, color, color_dark}));
 const GAS_META = {nH: {label: "nH", long: "hydrogen density nH"}, T: {label: "T", long: "temperature (nH-weighted)"}, Z: {label: "Z", long: "metallicity (nH-weighted)"}};
 
-/* The 3D species menu: nH, T, Z, then the ions in registry (ladder) order with their registry colours. `ions` is the
-   page's CFG.ions (any order; sorted by `order` when present) or null for the fallback copy. A species is `available`
-   only when the manifest has its cubes; the others carry the reason (shown as the disabled button's tooltip). Pure. */
 export function speciesList(ions, manifest) {
   const reg = Array.isArray(ions) && ions.length ? [...ions].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : ION_FALLBACK;
   const have = k => !!manifest?.gas?.fields?.[k]?.cubes;
@@ -38,13 +31,7 @@ export function speciesList(ions, manifest) {
       color_dark: i.color_dark || i.color || null, available: have(i.key), reason: have(i.key) ? "" : !manifest ? why(i.key) : `${ion} cubes are not built yet`}); }
   return out;
 }
-/* vel3d: the gas velocity vector. Three gas fields vx, vy, vz (kind "velocity", encoding "linear", disk frame xhat, yhat,
-   Lhat, relative to SubhaloVel) named by the manifest block gas.vectors.v. The viewer packs them into one RGBA cube per
-   level and derives five views per sample, every frame (raymarch.js velQ): v_los and σ_los follow the camera ray. */
 export const VEL_COMP_KEYS = ["vx", "vy", "vz"];
-/* q of each view in the shader (raymarch uVq); signed views use a diverging LUT, with words at the legend's ends (v_los:
-   relative to you, the camera, so the reference frame is on screen); `spoken` names the view in plain text (radio
-   aria-label, status line, announcements, thumbnail tag), where the compact `label` would read like a typo */
 export const VEL_VIEWS = [
   {key: "vlos", q: 1, signed: true, label: "v los", spoken: "line-of-sight velocity", html: "v<sub>los</sub>", long: "line-of-sight velocity, along the camera ray", words: ["toward you", "away from you"]},
   {key: "vr", q: 2, signed: true, label: "v r", spoken: "radial velocity", html: "v<sub>r</sub>", long: "radial velocity", words: ["inflow", "outflow"]},
@@ -65,6 +52,55 @@ export function velocityList(manifest) {
   const ok = !!velocityInfo(manifest), reason = ok ? "" : !manifest ? "no 3D data in this build" : "the velocity cubes are not built yet";
   return VEL_VIEWS.map(x => ({...x, group: "vel", color: null, color_dark: null, available: ok, reason}));
 }
+
+export const DERIVED_FIELDS = [
+  ["Pth", "P<sub>th</sub>", "thermal pressure", "ICM thermal pressure P_th/k_B", "K cm^-3", "mass_weighted", -1, 8, "inferno", "weighted_mean", 1.5, 6.2, "K cm^-3", 2, 6.5, ["nH", "T"]],
+  ["K", "K", "adiabatic entropy", "ICM adiabatic entropy K", "keV cm^2", "mass_weighted", -2, 5, "viridis", "weighted_mean", 0.8, 3.6, "keV cm^2", 1, 3.8, ["nH", "T"]],
+  ["EM", "EM", "X-ray emission measure", "X-ray bremsstrahlung emission measure", "cm^-6 K^1/2", "density", -8, 4, "magma", "column", 17.5, 24.5, "cm^-5 K^1/2", -4.5, 1.5, ["nH", "T"]],
+  ["tcool", "t<sub>cool</sub>", "radiative cooling time", "radiative cooling time t_cool", "Gyr", "mass_weighted", -3, 3, "tng_ice", "weighted_mean", -1.5, 2, "Gyr", -1.5, 1.8, ["nH", "T", "Z"]],
+  ["Mach", "ℳ", "thermal Mach number", "thermal Mach number |v|/c_s(T)", "v/cs", "mass_weighted", -1.5, 1.5, "magma", "weighted_mean", -0.8, 0.8, "v/cs", -0.5, 1, ["T", "vx", "vy", "vz"]],
+].map(([key, html, spoken, long, units, kind, vmin, vmax, cmap, pk, p0, p1, pu, v0, v1, deps]) =>
+  ({key, label: key, html, spoken, long, units, kind, vmin, vmax, cmap, proj: {kind: pk, vmin: p0, vmax: p1, units: pu}, vol_window: [v0, v1], deps}));
+export const DERIVED_KEYS = DERIVED_FIELDS.map(x => x.key);
+export const derivedMeta = k => DERIVED_FIELDS.find(x => x.key === k) || null;
+export function derivedList(m) {
+  const F = m?.gas?.fields || {};
+  return DERIVED_FIELDS.map(x => { const ok = !!m && x.deps.every(d => !!F[d]?.cubes);
+    return {...x, group: "derived", color: null, color_dark: null, available: ok, reason: ok ? "" : !m ? "no 3D data in this build" : `requires ${x.deps.filter(d => !F[d]?.cubes).join(", ")} cubes`}; });
+}
+export function coolingLambda(T, Z = 0.3) {
+  if (!(T > 0)) return 1e-28;
+  const lt = Math.log10(T), dH = lt - 4.8, dFe = lt - 6.8;
+  return Math.max(1e-28, 2.1e-27 * Math.sqrt(T) + 1.5e-22 * Math.exp(-dH * dH / 0.18) +
+    Math.max(0, Z) * (1.2e-22 / ((T / 3.16227766e5) ** 0.75 + (5.0118723e4 / T) ** 2.5) + 3e-23 * Math.exp(-dFe * dFe / 0.25)));
+}
+export function computeDerivedCube(key, inp, rg) {
+  const m = derivedMeta(key); if (!m) throw new Error(`unknown derived field ${key}`);
+  const f0 = inp[m.deps[0]]; if (!f0) throw new Error(`missing ${m.deps[0]} cube`);
+  const N = f0.length, out = new Uint8Array(N), vmin = m.vmin, kS = 254 / (m.vmax - vmin);
+  const enc = lv => { if (!Number.isFinite(lv)) return 0; const q = Math.round((lv - vmin) * kS) + 1; return q < 1 ? 1 : q > 255 ? 255 : q; };
+  const lut = r => { const t = new Float32Array(256), s = (r[1] - r[0]) / 254; t[0] = NaN; for (let q = 1; q < 256; q++) t[q] = r[0] + (q - 1) * s; return t; };
+  if (key === "Pth" || key === "K" || key === "EM") {
+    const qN = inp.nH, qT = inp.T, lN = lut(rg.nH), lT = lut(rg.T);
+    for (let i = 0; i < N; i++) { const a = qN[i], b = qT[i]; if (!a || !b) continue;
+      out[i] = enc(key === "Pth" ? 0.361727836 + lN[a] + lT[b] : key === "K" ? lT[b] - 0.66666667 * lN[a] - 7.1075888 : 2 * lN[a] + 0.5 * lT[b]); }
+  } else if (key === "tcool") {
+    const qN = inp.nH, qT = inp.T, qZ = inp.Z, lN = lut(rg.nH), lT = lut(rg.T), zL = new Float32Array(256), l0 = new Float32Array(256), lZ = new Float32Array(256), nT = new Float32Array(256);
+    zL[0] = 0.3; if (rg.Z) { const sZ = (rg.Z[1] - rg.Z[0]) / 254; for (let q = 1; q < 256; q++) zL[q] = 10 ** (rg.Z[0] + (q - 1) * sZ); }
+    for (let q = 1; q < 256; q++) { const T = 10 ** lT[q], dH = lT[q] - 4.8, dFe = lT[q] - 6.8;
+      l0[q] = 2.1e-27 * Math.sqrt(T) + 1.5e-22 * Math.exp(-dH * dH / 0.18);
+      lZ[q] = 1.2e-22 / ((T / 3.16227766e5) ** 0.75 + (5.0118723e4 / T) ** 2.5) + 3e-23 * Math.exp(-dFe * dFe / 0.25);
+      nT[q] = Math.log10(1.3125e-32 * T); }
+    for (let i = 0; i < N; i++) { const a = qN[i], b = qT[i]; if (!a || !b) continue;
+      out[i] = enc(nT[b] - lN[a] - Math.log10(Math.max(1e-28, l0[b] + zL[qZ ? qZ[i] : 0] * lZ[b]))); }
+  } else if (key === "Mach") {
+    const qT = inp.T, qx = inp.vx, qy = inp.vy, qz = inp.vz, lT = lut(rg.T), V = rg.V || 1000, sV = 2 * V / 254, vL = new Float32Array(256), lC = new Float32Array(256);
+    for (let q = 1; q < 256; q++) { vL[q] = -V + (q - 1) * sV; lC[q] = -0.816246 + 0.5 * lT[q]; }
+    for (let i = 0; i < N; i++) { const bt = qT[i], a = qx[i], b = qy[i], c = qz[i]; if (!bt || !a || !b || !c) continue;
+      const vm = Math.hypot(vL[a], vL[b], vL[c]); if (vm > 0) out[i] = enc(Math.log10(vm) - lC[bt]); }
+  }
+  return out;
+}
 /* linear u8 decoding (encoding "linear"): q = 0 empty (NaN), else v = vmin + (q − 1)(vmax − vmin)/254, so q = 128 is 0 for vmin = −vmax */
 export function decodeLinear(q, vmin, vmax) {
   if (wasmReady() && q instanceof Uint8Array && q.length >= 64) {
@@ -79,10 +115,6 @@ export function encodeLinear(v, V) {   // the inverse (tests): NaN -> 0 (empty),
   for (let i = 0; i < v.length; i++) { const x = v[i]; out[i] = Number.isFinite(x) ? 1 + Math.round((Math.min(V, Math.max(-V, x)) + V) / (2 * V) * 254) : 0; }
   return out;
 }
-/* CPU packing of the three component cubes into one RGBA cube (4n³ bytes): R, G, B = q of vx, vy, vz, A = 255 where
-   non-empty. Empty voxels are packed as q = 128 (0 km/s) with A = 0, so the hardware trilinear blend of R, G, B decodes
-   (the decoding is affine) to Σ wᵢ vᵢ over the non-empty corners and the blended A is Σ wᵢ: v = blend / A is the mean
-   over the non-empty corners on both the fast and the exact shader path. */
 export function packVelocity(qx, qy, qz) {
   const N = qx.length; if (qy.length !== N || qz.length !== N) throw new Error("packVelocity: the component cubes differ in size");
   if (wasmReady() && qx instanceof Uint8Array && qy instanceof Uint8Array && qz instanceof Uint8Array && N >= 64) {
@@ -95,9 +127,6 @@ export function packVelocity(qx, qy, qz) {
     else { out[o] = a; out[o + 1] = b; out[o + 2] = c; out[o + 3] = 255; } }
   return out;
 }
-/* the derived quantity of one sample, as the shader computes it: v (km/s, disk frame), p (disk-frame kpc), d (unit camera
-   ray direction, disk frame). vlos > 0 moves away from the camera (redshift, the spectra's sign); vr > 0 outflow;
-   vphi > 0 co-rotation (about +Lhat = ẑ); vmag the speed. sigmalos per sample is dot(v, d) (its moment 2 is taken along the ray). */
 export function velQuantity(key, v, p, d) {
   const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
   if (key === "vlos" || key === "sigmalos") return dot(v, d);
@@ -130,10 +159,6 @@ const isObj = x => x !== null && typeof x === "object" && !Array.isArray(x);
 const isHex = (x, n) => isStr(x) && new RegExp(`^[0-9a-f]{${n}}$`).test(x);
 const isVec = (x, n) => Array.isArray(x) && x.length === n && x.every(isNum);
 
-/* final: a timeout, so a ?viz= host that accepts the connection and never answers ends in an error (and a stage message)
-   instead of a 3D tab that stays blank. opts.fetchText(url, timeoutMs) -> text is the page's network helper (vizload.js
-   fetchText, i.e. netFetch with its stall timer); without it, a plain fetch with an AbortController deadline (node, tests).
-   The error carries .timeout or .network, so the caller can tell an unreachable host from a bad manifest. */
 export async function loadManifestV2(url, {timeoutMs = 10000, fetchText = null} = {}) {
   let host = "the host"; try { host = new URL(url).host; } catch { /* keep */ }
   let txt;
@@ -317,13 +342,7 @@ export function levelForView({hVisKpc, mobile = false, deviceMemory = 8} = {}) {
   return {gas: ["L1", "L0", "L2"], stars: h > 150 ? ["S1", "S2", "S0"] : ["S1", "S2"], parallel};
 }
 
-/* final (cold first load): the staged load plan for the current view, in priority order. The gas field at L0 comes first
-   (the viewer draws as soon as it alone is decoded), then L1, then the star level the view resolves (S1), and only then the
-   levels a zoomed-in or zoomed-out view adds: L2 / S2 once their voxel is at least one LOD footprint wide on screen
-   (ratio ≥ 1, the shader's lodLevel rule; mobile also needs hVis < 60 kpc), S0 when hVis > 150 kpc (desktop only).
-   ratio = {L1, L2, S1, S2}: voxel size / (LOD constant × kpc per drawing-buffer pixel at the box's nearest point).
-   L1 is skipped only in very wide views where its voxel is under half a footprint (ratio < 0.5). Other fields are never
-   in the plan: they load when they are selected. */
+/* Staged load plan for current view in priority order (L0 -> L1 -> S1 -> L2/S2/L3/S3/L4/S4/S0). */
 export function viewPlan({ratio = {}, hVisKpc, mobile = false, stars = false, hasL3 = false, hasL4 = false, l0HalfKpc = 400} = {}) {
   const s = Math.max(1, (+l0HalfKpc || 400) / 400);
   const h = Number.isFinite(hVisKpc) ? hVisKpc : 153 * s, r = k => (Number.isFinite(ratio[k]) ? ratio[k] : 0);
@@ -352,11 +371,7 @@ export function lupton(Si, Sr, Sg, {Q = 8.0, mu0 = 21.5, balance = [1, 1, 1]} = 
   return [R, G, B];
 }
 
-/* tune2 display prefilter (viewer only; the hosted bytes and their sha256 are unchanged). Decodes a log10-u8 cube to
-   linear values, applies `passes` separable [1, 2, 1]/4 passes along x, y and z (σ = sqrt(passes / 2) voxels; mirrored
-   edges, so the sum is kept) and re-encodes with the same vmin/vmax; values below half the vmin value become empty
-   (q = 0). ch = 1: a gas cube (n³ bytes); ch = 4: a star cube (RGBA, 4n³ bytes, R/G/B smoothed independently,
-   A = 255 where any of them is > 0). Returns a new Uint8Array. */
+/* Display prefilter (viewer only; hosted bytes/sha256 unchanged): log10-u8 -> linear, separable [1,2,1]/4 passes, re-encode. */
 export function smoothCube(q, n, vmin, vmax, passes = 2, ch = 1) {
   const N = n * n * n, span = vmax - vmin, dec = new Float32Array(256);
   for (let i = 1; i < 256; i++) dec[i] = 10 ** ((i - 1) * span / 254 - span);   // normalised to 10^vmax

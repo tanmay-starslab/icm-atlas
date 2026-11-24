@@ -7,9 +7,9 @@
 //     galaxy/simulation stamp, and wrapped Computer Modern caption block below the figure
 //   - Exact 8-frame sub-pixel accumulated high-DPI render (default 400 dpi at 7.1 in double-column width)
 //   - Zero-dependency vector PDF 1.4 generator (with PNG pHYs 400 dpi metadata on PNGs) + Copy LaTeX figure snippet.
-import {lut} from "./colormaps.js?v=20261123f";
-import {buildTF, TF_W, TF_H} from "./tf.js?v=20261123f";
-import {CM_GLYPHS} from "./cm_font.js?v=20261123f";
+import {lut} from "./colormaps.js?v=20261124a";
+import {buildTF, TF_W, TF_H} from "./tf.js?v=20261124a";
+import {CM_GLYPHS} from "./cm_font.js?v=20261124a";
 
 const BG_HEX = "#05070b";
 const BG_RGB = [5, 7, 11];
@@ -480,8 +480,11 @@ export function buildDeepLink(viewer) {
 }
 
 export function getFieldTexInfo(species, mode, weight = "nH") {
-  const integ = mode === "integral";
+  const integ = mode === "integral", emis = mode === "emission";
   const wTex = weight === "nH" ? "n_{\\mathrm{H}}" : `n_{\\mathrm{${ION_TEX[weight] || weight}}}`;
+  if (emis && (species === "nH" || species === "T" || species === "EM")) {
+    return {math: "$\\log_{10} \\int n_{\\mathrm{H}}^2 T^{1/2}\\,ds\\ [\\mathrm{cm^{-5}\\,K^{1/2}}]$", desc: "projected X-ray bremsstrahlung surface brightness $\\log_{10} \\int n_{\\mathrm{H}}^2 T^{1/2}\\,ds$", unitTex: "\\mathrm{cm^{-5}\\,K^{1/2}}"};
+  }
   if (species === "nH") {
     return integ
       ? {math: "$\\log_{10} N_{\\mathrm{H}}\\ [\\mathrm{cm^{-2}}]$", desc: "projected hydrogen column density $\\log_{10} N_{\\mathrm{H}}$", unitTex: "\\mathrm{cm^{-2}}"}
@@ -493,12 +496,32 @@ export function getFieldTexInfo(species, mode, weight = "nH") {
       : {math: "$\\log_{10} T\\ [\\mathrm{K}]$", desc: "gas temperature $\\log_{10} T$", unitTex: "\\mathrm{K}"};
   }
   if (species === "Z") {
-    return integ
-      ? {math: "$\\log_{10} \\langle Z\\rangle_{n_{\\mathrm{H}}}\\ [\\mathrm{Z}_{\\odot}]$", desc: "$n_{\\mathrm{H}}$-weighted gas metallicity $\\log_{10} \\langle Z\\rangle$", unitTex: "\\mathrm{Z}_{\\odot}"}
+    return integ || emis
+      ? {math: `$\\log_{10} \\langle Z\\rangle_{${emis ? "\\mathrm{EM}" : "n_{\\mathrm{H}}"}}\\ [\\mathrm{Z}_{\\odot}]$`, desc: `${emis ? "EM" : "$n_{\\mathrm{H}}$"}-weighted gas metallicity $\\log_{10} \\langle Z\\rangle$`, unitTex: "\\mathrm{Z}_{\\odot}"}
       : {math: "$\\log_{10} Z\\ [\\mathrm{Z}_{\\odot}]$", desc: "gas metallicity $\\log_{10} Z$", unitTex: "\\mathrm{Z}_{\\odot}"};
+  }
+  const DER_MAP = {
+    Pth: ["P_{\\mathrm{th}}/k_{\\mathrm{B}}", "ICM thermal pressure", "\\mathrm{K\\,cm^{-3}}"],
+    K: ["K", "ICM adiabatic entropy", "\\mathrm{keV\\,cm^{2}}"],
+    EM: ["n_{\\mathrm{H}}^2 T^{1/2}", "X-ray bremsstrahlung emission measure", "\\mathrm{cm^{-6}\\,K^{1/2}}"],
+    tcool: ["t_{\\mathrm{cool}}", "radiative cooling time", "\\mathrm{Gyr}"],
+    Mach: ["\\mathcal{M}", "thermal Mach number", ""]
+  };
+  if (DER_MAP[species]) {
+    const [sym, name, u] = DER_MAP[species];
+    if (species === "EM" && integ) {
+      return {math: "$\\log_{10} \\int n_{\\mathrm{H}}^2 T^{1/2}\\,ds\\ [\\mathrm{cm^{-5}\\,K^{1/2}}]$", desc: "projected X-ray bremsstrahlung emission measure", unitTex: "\\mathrm{cm^{-5}\\,K^{1/2}}"};
+    }
+    const uBr = u ? `\\ [${u}]` : "";
+    return integ || emis
+      ? {math: `$\\log_{10} \\langle ${sym}\\rangle${uBr}$`, desc: `${emis ? "EM" : "$n_{\\mathrm{H}}$"}-weighted ${name} $\\log_{10} \\langle ${sym}\\rangle$`, unitTex: u}
+      : {math: `$\\log_{10} ${sym}${uBr}$`, desc: `${name} $\\log_{10} ${sym}$`, unitTex: u};
   }
   if (ION_TEX[species]) {
     const ion = ION_TEX[species];
+    if (emis) {
+      return {math: `$\\log_{10} \\int n_{\\mathrm{H}} n_{\\mathrm{${ion}}}\\,ds\\ [\\mathrm{cm^{-5}}]$`, desc: `projected $\\mathrm{${ion}}$ line surface brightness`, unitTex: "\\mathrm{cm^{-5}}"};
+    }
     return integ
       ? {math: `$\\log_{10} N_{\\mathrm{${ion}}}\\ [\\mathrm{cm^{-2}}]$`, desc: `projected $\\mathrm{${ion}}$ column density $\\log_{10} N_{\\mathrm{${ion}}}$`, unitTex: "\\mathrm{cm^{-2}}"}
       : {math: `$\\log_{10} n_{\\mathrm{${ion}}}\\ [\\mathrm{cm^{-3}}]$`, desc: `$\\mathrm{${ion}}$ number density $\\log_{10} n_{\\mathrm{${ion}}}$`, unitTex: "\\mathrm{cm^{-3}}"};

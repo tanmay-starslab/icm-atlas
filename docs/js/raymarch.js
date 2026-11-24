@@ -1,20 +1,5 @@
-// GLSL3 ray marcher for the Phase-2b 3D viewer (design §5.5) and makeMaterial(THREE, opts).
-// One fragment pass on the back faces of the L0 box (mesh local coordinates = disk-frame kpc). Each ray is cut at the
-// faces of the ±100 and ±25 kpc boxes into ≤ 5 segments; each segment samples the finest RESIDENT level that
-// contains it (gas and stars independently), with a step of that level's voxel / uSpv, so no sample straddles two
-// levels. Exact samples decode the 8 neighbouring u8 texels to linear values and mix them trilinearly (texelFetch);
-// the fast path decodes the hardware-interpolated q (a log-space blend, used only while moving).
-// Integral mode: gas column (or n_H-weighted mean of T, Z) -> LUT; stars: Σ_b = Σ ℓ_b dt -> Lupton asinh composite;
-// the two layers combine by a screen blend. Volume mode: front-to-back emission/absorption of the gas over uBg.
-// vel3d (uVq > 0): the gas layer is a velocity view derived per sample and per frame from the packed vector cube (uVel*)
-// and the camera ray; integral = the weight-weighted mean along the ray (σ_los: the weighted dispersion of dot(v, d)), volume =
-// opacity from the weight (uW*) with the colour of the view.
-// TF mode (uTFOn = 1, volume mode, scalar fields): THOR-style volume rendering (Byrohl & Nelson 2025, §3.5.3) with the
-// 256×64 transfer-function texture uTF (tf.js) over the window uTFWin, optional 2D lookup by the gradient magnitude
-// (uTF2D, normalised by uGradMax dex/voxel), headlight shading (uShade) and an emissivity weight from uW* (uTFW, uGamma,
-// uWRef). With uTFOn = 0 the shader computes exactly what it did before.
-/* tune2: uSub shifts the whole raster by a sub-pixel offset (clip units) so the progressive refine frames average
-   several sample positions per pixel (anti-aliasing of sub-pixel structure) */
+// GLSL3 ray marcher for the 3D viewer and makeMaterial(THREE, opts).
+// Modes: uMode 0 integral (column / weighted mean), 1 volume (emission/absorption + optional THOR TF), 2 emission SB.
 export const VERT = `out vec3 vPos; uniform vec2 uSub;
 void main() { vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_Position.xy += uSub * gl_Position.w; }`;
 
@@ -76,10 +61,7 @@ int pick(vec3 have, vec3 p, int below) {
   float m = linf(p);
   for (int l = 2; l >= 0; l--) if (l < below && hv(have, l) > 0.0 && m < hl(l)) return l;
   return -1; }
-/* tune2 footprint LOD: a level is used only while its voxel is at least c pixels wide at the segment's distance
-   (fp = kpc per pixel there); between 0.5 c and c it is blended with the next coarser resident level. Columns are
-   conserved on every level, so this changes only the resolution, and it removes the sub-pixel sparkle (aliasing) of
-   the fine levels in wide views. Returns the level and, in mix, the weight of that level (1 = no blend). */
+/* footprint LOD */
 int lodLevel(vec3 have, vec3 p, int l, float fp, float c, out int coarse, out float mixw) {
   coarse = -1; mixw = 1.0;
   if (l < 0 || c <= 0.0) return l;
@@ -124,12 +106,7 @@ float velQ(vec3 v, vec3 p, vec3 d) {
   if (uVq == 3) { vec2 t = vec2(-p.y, p.x); float r = length(t); return r > 1e-4 ? dot(v.xy, t) / r : 0.0; }
   return length(v); }
 
-/* TF mode (THOR §3.5.3): gradient of the colour field's log value by central differences on level l, in dex per L1 voxel
-   (0.78 kpc; disk-frame axes): the difference over one voxel of level l is scaled by hl(1)/hl(l), so the 2D TF rows and
-   the shading classify the same gas alike on every level (no jump at the ±25/±100 kpc faces or on a LOD switch) and match
-   the editor's 2D histogram, which is built on L1. It reads the hardware-interpolated q (6 fetches, LOD/fade/mask not applied): q is linear in log v,
-   so the q difference is the log difference. Empty texels (q 0) blend in as low values, so the edge of the deposited
-   gas reads as a steep gradient (a real boundary). */
+/* TF gradient (dex per L1 voxel) */
 float qAt(vec3 t, int l) { return (l == 0 ? texture(uGas0, t).r : l == 1 ? texture(uGas1, t).r : texture(uGas2, t).r) * 255.0; }
 vec3 gradAt(vec3 p, int l) {
   vec3 t = p / (2.0 * hl(l)) + 0.5; float e = 1.0 / uN, s = 0.5 * (uGasRange.y - uGasRange.x) / 254.0;
@@ -175,6 +152,7 @@ void main() {
   vec3 gHave = velMode ? min(uVelHave, uWHave) : uGasHave;
   bool gasOn = uGasMix > 0.0 && (gHave.x + gHave.y + gHave.z) > 0.0, starOn = uStarMix > 0.0 && (uStarHave.x + uStarHave.y + uStarHave.z) > 0.0;
   bool weighted = !velMode && uKind == 1 && uMode == 0;
+  bool emisMode = !velMode && uMode == 2;
   float num2 = 0.0, wspan = max(uWWin.y - uWWin.x, 1e-6);
   /* TF mode: volume mode of a scalar gas field with the transfer function uTF instead of the fixed ramp; tfW: the
      emissivity weight (uW*, e.g. n_H) scales the emitted colour by (w / 10^uWRef)^uGamma */
@@ -193,7 +171,7 @@ void main() {
   for (int s = 0; s < 5; s++) {
     float ta = bp[s], tl = bp[s + 1] - ta; if (tl <= 1e-5) continue;
     vec3 pm = o + d * (ta + 0.5 * tl);
-    int lg = gasOn ? pick(gHave, pm, 3) : -1, lw = (weighted || tfW) ? pick(uWHave, pm, 3) : -1, ls = starOn ? pick(uStarHave, pm, 3) : -1;
+    int lg = gasOn ? pick(gHave, pm, 3) : -1, lw = (weighted || tfW || emisMode) ? pick(uWHave, pm, 3) : -1, ls = starOn ? pick(uStarHave, pm, 3) : -1;
     float fp = uPxAng * max(length(pm - o), 1.0), mg = 1.0, mw = 1.0, ms = 1.0; int cg = -1, cw = -1, cs = -1;
     lg = lodLevel(gHave, pm, lg, fp, uLodC.x, cg, mg); lw = lodLevel(uWHave, pm, lw, fp, uLodC.x, cw, mw);
     ls = lodLevel(uStarHave, pm, ls, fp, uLodC.y, cs, ms);
@@ -212,7 +190,7 @@ void main() {
         float w = wVal(p, lg); vec4 m = velVal(p, lg); if (cg >= 0) { w = mix(wVal(p, cg), w, mg); m = mix(velVal(p, cg), m, mg); }
         if (w > 0.0 && m.w > 1e-3) {
           float qv = velQ(m.xyz / m.w, p, d);
-          if (uMode == 0) { float ww = w * hw; num += ww * qv; num2 += ww * qv * qv; den += ww; }
+          if (uMode == 0 || uMode == 2) { float ww = (uMode == 2 ? w * w : w) * hw; num += ww * qv; num2 += ww * qv * qv; den += ww; sumG += w * hw; }
           else { float xw = clamp((log2(w) / LOG2_10 - uWWin.x) / wspan, 0.0, 1.0);   /* opacity from the weight's volume window */
             if (xw > 0.0) { float a = 1.0 - exp(-kappa * xw * xw * hw); C += (1.0 - A) * a * lutc((qv - uWin.x) / span); A += (1.0 - A) * a; } }
         }
@@ -221,6 +199,15 @@ void main() {
         if (uMode == 0) {
           if (weighted) { float w = lw >= 0 ? wVal(p, lw) : 0.0; if (lw >= 0 && cw >= 0) w = mix(wVal(p, cw), w, mw); num += w * v * hw; den += w * hw; }
           else sumG += v * hw;
+        } else if (uMode == 2) {
+          if (uKind == 4) sumG += v * hw;
+          else {
+            float w = lw >= 0 ? wVal(p, lw) : 0.0; if (lw >= 0 && cw >= 0) w = mix(wVal(p, cw), w, mw);
+            if (uKind == 1) { float ww = w * w * hw; num += ww * v; den += ww; }
+            else if (uKind == 2) sumG += w * w * sqrt(max(v, 0.0)) * hw;
+            else if (uKind == 3) sumG += v * v * sqrt(max(w, 0.0)) * hw;
+            else sumG += w * v * hw;
+          }
         } else if (tfMode) {
           /* THOR: C = ∫ c μ exp(−∫ μ) ds, front to back. Per step μ = kappa alpha_TF (kappa = uVolK opacity² per kpc,
              as the ramp's kappa x²), opacity a = 1 − exp(−μ h) (= μ h for thin steps), emission (1 − A) a c W with W the
@@ -257,10 +244,12 @@ void main() {
       /* vel3d integral: the weight-weighted mean of the view along the ray (moment 1), or for σ_los the weighted dispersion
          of dot(v, d), sqrt(moment 2 − moment 1²); it fades into the background below the weight column floor uWWin.x */
       float m1 = den > 0.0 ? num / den : 0.0, qv = uVq == 5 ? (den > 0.0 ? sqrt(max(num2 / den - m1 * m1, 0.0)) : 0.0) : m1;
-      float lc = den > 0.0 ? log2(den) / LOG2_10 + LOG10_CM_PER_KPC : -1e30;
+      float colW = uMode == 2 ? sumG : den;
+      float lc = colW > 0.0 ? log2(colW) / LOG2_10 + LOG10_CM_PER_KPC : -1e30;
       gas = mix(uBg, lutc((qv - uWin.x) / span), smoothstep(uWWin.x - max(uFadeDex, 1e-3), uWWin.x, lc));
     } else {
-      float lv = weighted ? (den > 0.0 && num > 0.0 ? log2(num / den) / LOG2_10 : -1e30) : (sumG > 0.0 ? log2(sumG) / LOG2_10 + LOG10_CM_PER_KPC : -1e30);
+      bool useMean = weighted || (emisMode && uKind == 1);
+      float lv = useMean ? (den > 0.0 && num > 0.0 ? log2(num / den) / LOG2_10 : -1e30) : (sumG > 0.0 ? log2(sumG) / LOG2_10 + LOG10_CM_PER_KPC : -1e30);
       float x = (lv - uWin.x) / span;
       /* tune1: columns below the window fade from LUT(0) into the background over uFadeDex dex (soft floor), so
          empty / masked regions (Σ = 0) leave no silhouette and sparse regions have no hard staircase edge */
@@ -332,18 +321,7 @@ export function makeMaterial(T, opts = {}) {
   return {material: mat, uniforms, empty1: e1, empty4: e4, lutTex, tfTex};
 }
 
-/* ---- Story variant (explainer v2, DESIGN_final §3.4, U_stage) ------------------------------------------------------------
-   The explorer's VERT/FRAG/makeMaterial above are untouched (their generated GLSL is byte-identical; tests/js/raymarch_parity.mjs).
-   FRAG_STORY reuses every helper of FRAG (decode, exact/fast sampling, level pick, LOD, TF lookup, shading, velocity) and
-   replaces only main(), compiled with `#define STORY` (ShaderMaterial.defines). The story main is volume mode only: no stars,
-   no integral or composite branches. What it adds:
-   - two segments (uSeg 1 = near: camera -> entry of the travelling capsule; 0 = far: capsule entry -> box exit), each drawn
-     into its own half-resolution target, so the near-field geometry (splats, ray cells, beam) is composited between them and
-     fog in front of it dims it by exp(-tau) (C_eng P0-3);
-   - the travelling capsule (uCap = l0, l1, r, edge about the ray uRayO + l uRayN): the volume weight is 1 - capF(p), the
-     splats use capF at their centre (same function, js/stage/tube.js capsuleF), so f_vol + f_splat = 1 (C_eng P0-4);
-   - depth fog to black (uFog: start, end distance from the camera, kpc) on the emission only (dark-sky rule, C_ux P0-3);
-   - output = premultiplied (C, A) of the segment, blended into its target as an EMA by the constant blend alpha. */
+/* Story variant */
 const STORY_MAIN = `#ifdef STORY
 uniform int uSeg; uniform vec3 uRayO, uRayN; uniform vec4 uCap; uniform vec2 uFog;
 /* phase 1: focus radius about the probe (DESIGN §3.1 uFocus, C_ux P0-3 "lower the far-field gain with uFocus"): emission
