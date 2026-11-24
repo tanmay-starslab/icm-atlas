@@ -7,9 +7,9 @@
 //     galaxy/simulation stamp, and wrapped Computer Modern caption block below the figure
 //   - Exact 8-frame sub-pixel accumulated high-DPI render (default 400 dpi at 7.1 in double-column width)
 //   - Zero-dependency vector PDF 1.4 generator (with PNG pHYs 400 dpi metadata on PNGs) + Copy LaTeX figure snippet.
-import {lut} from "./colormaps.js?v=20261124a";
-import {buildTF, TF_W, TF_H} from "./tf.js?v=20261124a";
-import {CM_GLYPHS} from "./cm_font.js?v=20261124a";
+import {lut} from "./colormaps.js?v=20261124c";
+import {buildTF, TF_W, TF_H} from "./tf.js?v=20261124c";
+import {CM_GLYPHS} from "./cm_font.js?v=20261124c";
 
 const BG_HEX = "#05070b";
 const BG_RGB = [5, 7, 11];
@@ -479,11 +479,26 @@ export function buildDeepLink(viewer) {
   return `${loc.origin || ""}${loc.pathname || "/tng50/"}${q ? "?" + q : ""}${hash.includes("tab=3d") ? hash : (hash ? hash + "&tab=3d" : "#tab=3d")}`;
 }
 
-export function getFieldTexInfo(species, mode, weight = "nH") {
+export function getFieldTexInfo(species, mode, weight = "nH", emisLine = "OVIII_18.97") {
   const integ = mode === "integral", emis = mode === "emission";
   const wTex = weight === "nH" ? "n_{\\mathrm{H}}" : `n_{\\mathrm{${ION_TEX[weight] || weight}}}`;
-  if (emis && (species === "nH" || species === "T" || species === "EM")) {
-    return {math: "$\\log_{10} \\int n_{\\mathrm{H}}^2 T^{1/2}\\,ds\\ [\\mathrm{cm^{-5}\\,K^{1/2}}]$", desc: "projected X-ray bremsstrahlung surface brightness $\\log_{10} \\int n_{\\mathrm{H}}^2 T^{1/2}\\,ds$", unitTex: "\\mathrm{cm^{-5}\\,K^{1/2}}"};
+  const isVel = ["vlos", "vr", "vphi", "vmag", "sigmalos"].includes(species);
+  if (emis && !isVel) {
+    const LINE_TEX = {
+      Ha_6563: "\\mathrm{H}\\alpha\\ 6563\\,\\mathrm{\\AA}", Lya_1216: "\\mathrm{Ly}\\alpha\\ 1216\\,\\mathrm{\\AA}",
+      OII_3727: "[\\mathrm{O\\,II}]\\ 3727/29\\,\\mathrm{\\AA}", OIII_5007: "[\\mathrm{O\\,III}]\\ 5007\\,\\mathrm{\\AA}",
+      NII_6583: "[\\mathrm{N\\,II}]\\ 6583\\,\\mathrm{\\AA}", MgII_2798: "\\mathrm{Mg\\,II}\\ 2796/03\\,\\mathrm{\\AA}",
+      CIII_977: "\\mathrm{C\\,III}\\ 977\\,\\mathrm{\\AA}", CIV_1548: "\\mathrm{C\\,IV}\\ 1548/51\\,\\mathrm{\\AA}",
+      OVI_1032: "\\mathrm{O\\,VI}\\ 1032/38\\,\\mathrm{\\AA}", OVII_21_6: "\\mathrm{O\\,VII}\\ 21.6\\,\\mathrm{\\AA}",
+      "OVII_21.6": "\\mathrm{O\\,VII}\\ 21.6\\,\\mathrm{\\AA}", "OVIII_18.97": "\\mathrm{O\\,VIII}\\ 18.97\\,\\mathrm{\\AA}",
+      "FeXXV_1.85": "\\mathrm{Fe\\,XXV}\\ 1.85\\,\\mathrm{\\AA}",
+    };
+    const lt = LINE_TEX[emisLine] || "\\mathrm{O\\,VIII}\\ 18.97\\,\\mathrm{\\AA}";
+    return {
+      math: `$${lt}\\ \\log_{10}\\,\\mathrm{SB}\\ [\\mathrm{erg\\,s^{-1}\\,cm^{-2}\\,arcsec^{-2}}]$`,
+      desc: `CLOUDY c17.03 $${lt}$ line emission surface brightness $\\log_{10}\\,\\mathrm{SB}$`,
+      unitTex: "\\mathrm{erg\\,s^{-1}\\,cm^{-2}\\,arcsec^{-2}}"
+    };
   }
   if (species === "nH") {
     return integ
@@ -548,7 +563,7 @@ export function getFieldTexInfo(species, mode, weight = "nH") {
 export function buildLatexCaption(viewer) {
   const m = sceneMeta(viewer);
   const info = getLegendInfo(viewer);
-  const fTex = getFieldTexInfo(m.species, m.mode, m.snap.weight || "nH");
+  const fTex = getFieldTexInfo(m.species, m.mode, m.snap.weight || "nH", viewer.emissionLine || m.snap.emissionLine || "OVIII_18.97");
   const cam = m.snap.camera || {position: [0, 0, 520], target: [0, 0, 0]};
   const dist = Math.round(Math.hypot(
     (cam.position?.[0] || 0) - (cam.target?.[0] || 0),
@@ -568,7 +583,7 @@ export function buildLatexCaption(viewer) {
 export function buildFigureVisualCaption(viewer) {
   const m = sceneMeta(viewer);
   const info = getLegendInfo(viewer);
-  const fTex = getFieldTexInfo(m.species, m.mode, m.snap.weight || "nH");
+  const fTex = getFieldTexInfo(m.species, m.mode, m.snap.weight || "nH", viewer.emissionLine || m.snap.emissionLine || "OVIII_18.97");
   const cam = m.snap.camera || {position: [0, 0, 520], target: [0, 0, 0]};
   const dist = Math.hypot(
     (cam.position?.[0] || 0) - (cam.target?.[0] || 0),
@@ -666,7 +681,7 @@ export function getLegendInfo(viewer) {
     minorTicks.push({v: +v.toFixed(3), frac});
   }
 
-  const fTex = getFieldTexInfo(species, mode, weight);
+  const fTex = getFieldTexInfo(species, mode, weight, viewer.emissionLine || snap.emissionLine || "OVIII_18.97");
   const titlePlain = domTitle || (isVel
     ? `${species} [km/s] (${mode})`
     : `log10 ${species} [${mode === "integral" ? "cm^-2" : "cm^-3"}]`);
