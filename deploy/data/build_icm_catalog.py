@@ -97,6 +97,24 @@ def populate_default_data() -> dict:
     gal_info = json.loads((src_web / "galaxy.json").read_text())
     cat_info = json.loads((src_web / "catalog.json").read_text())
     entries = cat_info.get("entries", [])
+    if isinstance(cat_info.get("spectra_source"), dict):
+        cat_info["spectra_source"].update({
+            "label": "THOR Voronoi + CLOUDY FG11 multiphase ICM pass",
+            "short": "THOR, CLOUDY FG11",
+            "path": "+-4 Mpc (5-level L0..L4 cluster volume)",
+            "ion_model": "CLOUDY FG11 + Rahmati13 + SH03 eEOS cold phase (THOR)",
+            "cubes": "5-level 256^3 3D ICM cubes (+-4 Mpc L0 down to +-15 kpc L4 BCG core)",
+            "weights": "Structure-targeted 120-ray multiphase ICM sightline library (b <= 4000 kpc)",
+            "text": (
+                "Structure-targeted 120-ray multiphase ICM library per galaxy cluster (40 coronal X-ray O VII / Ne VIII "
+                "filaments, 35 warm-hot O VI / N V / C IV ram-pressure stripped tails, 30 cool-core BCG / jellyfish / "
+                "satellite subhalo clumps, 15 virial cavity baseline rays) across impact parameters b <= 4000 kpc (+-4 Mpc). "
+                "Ionisation: CLOUDY FG11 UV/X-ray background tables (THOR, Byrohl & Nelson 2025) with Rahmati et al. (2013) "
+                "H I self-shielding and Springel & Hernquist (2003) eEOS cold-phase reconstruction; FP64 Voigt optical depths "
+                "at 0.5 km/s over +-1500 km/s (default R X-ray = 3,000, dv = 100 km/s; R UV/EUV = 30,000, dv = 10 km/s)."
+            ),
+        })
+        (DATA_DIR / "catalog.json").write_text(json.dumps(cat_info, separators=(",", ":")))
     print(f"Populated docs/tng50/data/ with {DEFAULT_CLUSTER_ID} ({len(entries)} sightlines)")
     gal_info["_entries"] = entries
     return gal_info
@@ -338,6 +356,7 @@ def render_index_html(default_gal: dict, cluster_list: list[dict]) -> None:
                 and _ion_depth(e, "OVI") >= 0.45
                 and _ion_depth(e, "NV") >= 0.30
                 and _ion_depth(e, "HI") >= 0.50
+                and float(logn_map.get("HI") or 0.0) < 18.5
             )
             return (has_all_default_ions, int(bool(e.get("showcase") or (e.get("n_showcase_ions") or 0) >= 2)), round(multi, 4), -int(e.get("rank") or 9999))
         best_entry = max(entries, key=_rich_key)

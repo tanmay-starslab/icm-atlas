@@ -432,7 +432,7 @@ def fire2_root() -> Path:
     cand = config.work_root() / "data" / "gal_fire2"
     if cand.is_dir():
         return cand
-    return Path("/data/sborthak/cgm_absorber_requirements/fire2")
+    return config.work_root() / "data" / "fire2"
 
 
 def measure_fire2(gdir: Path, hid: str) -> dict:

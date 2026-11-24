@@ -35,17 +35,17 @@
 //   that has no gas.vectors). setWeight(k) picks their weight (nH or an ion with cubes; viewer.weight reads it),
 //   setTransfer({W, opacity, cmap}) their window (±W km/s, 0..W for vmag and sigmalos); viewer.velocity = {V, units, frame} or null.
 // ------------------------------------------------------------------------------------------------------------------------
-import {initLiquidSeg} from "./liquidtabs.js?v=20261123e";   /* CSS-only liquid drop behind the Field and Render mode rows */
-import {lut, cssGradient, NAMES as CMAPS, VEL_NAMES} from "./colormaps.js?v=20261123e";
+import {initLiquidSeg} from "./liquidtabs.js?v=20261123f";   /* CSS-only liquid drop behind the Field and Render mode rows */
+import {lut, cssGradient, NAMES as CMAPS, VEL_NAMES} from "./colormaps.js?v=20261123f";
 import {VOL_KEYS, ION_KEYS, decodeU8, gunzipIfNeeded, loadManifestV2, viewPlan, speciesList, MU_ZERO,
   VEL_KEYS, VEL_COMP_KEYS, velocityInfo, velocityList, packVelocity,
-  initFastVizWasm, wasm_cast_cube_ray, wasm_synthesize_voigt_12ions, wasm_decode_lut_volume} from "./vizdata.js?v=20261123e";
-import {makeMaterial} from "./raymarch.js?v=20261123e";
-import {makeLoader, HostError, fetchText} from "./vizload.js?v=20261123e";
-import {preset as tfPreset, encodeTF, decodeTF, buildTF, tfUniforms, defaultWRef, histogram2D, GMAX_DEFAULT, THOR, NELSON16, TF_W, TF_H} from "./tf.js?v=20261123e";
-import {createTfEditor, histCodes, histWindow} from "./tfeditor.js?v=20261123e";
-import {initTips} from "./tips.js?v=20261123e";
-import {sfx} from "./uisound.js?v=20261123e";
+  initFastVizWasm, wasm_cast_cube_ray, wasm_synthesize_voigt_12ions, wasm_decode_lut_volume} from "./vizdata.js?v=20261123f";
+import {makeMaterial} from "./raymarch.js?v=20261123f";
+import {makeLoader, HostError, fetchText} from "./vizload.js?v=20261123f";
+import {preset as tfPreset, encodeTF, decodeTF, buildTF, tfUniforms, defaultWRef, histogram2D, GMAX_DEFAULT, THOR, NELSON16, TF_W, TF_H} from "./tf.js?v=20261123f";
+import {createTfEditor, histCodes, histWindow} from "./tfeditor.js?v=20261123f";
+import {initTips} from "./tips.js?v=20261123f";
+import {sfx} from "./uisound.js?v=20261123f";
 
 export {VOL_KEYS, decodeU8, gunzipIfNeeded, speciesList, velocityList,
   initFastVizWasm, wasm_cast_cube_ray, wasm_synthesize_voigt_12ions, wasm_decode_lut_volume};
@@ -173,6 +173,7 @@ const BG = "#05070b";
    [14.0, 17.5] (was the manifest's [11.3, 18.6], 7 dex: almost uniform teal), H I [17.3, 21.5] (the disk at ≥ 20.5 now
    reaches the top of the LUT and the 17–18 halo sits low), O VI hi 15.2 (was 15.6; p99.9 of the columns is 15.2–15.3) */
 const WIN_DEFAULT = {nH: {lo: 18.4}, Z: {lo: -1.1, hi: 0.25}, HI: {lo: 17.3, hi: 21.5}, OVI: {lo: 13.6, hi: 15.2}, CIII: {lo: 14.0, hi: 17.5}};
+const WIN_CLUSTER = {nH: {lo: 20.1, hi: 21.8}, Z: {lo: -1.1, hi: -0.2}, HI: {lo: 12.8, hi: 19.5}, OVII: {lo: 11.4, hi: 15.2}, NeVIII: {lo: 9.2, hi: 13.5}, OVI: {lo: 8.2, hi: 13.2}, NV: {lo: 6.0, hi: 11.8}, CIV: {lo: 5.5, hi: 12.2}, CIII: {lo: 1.5, hi: 12.5}};
 /* tune3: per-field soft floor width (dex below the window low; raymarch uFadeDex, default 1) — the ions fade out over
    more dex, so cloud edges are soft instead of a hard rim at the window low */
 const FADE_DEX = {HI: 2.0, OVI: 1.5, CIII: 1.5};
@@ -688,11 +689,13 @@ async function create(app, opts = {}) {
   const AA = (devicePixelRatio || 1) < 1.5;
   const renderer = new T.WebGLRenderer({canvas, antialias: AA, alpha: false, powerPreference: "high-performance"});
   renderer.outputColorSpace = T.LinearSRGBColorSpace; renderer.setClearColor(new T.Color(BG), 1);
+  const gl0 = renderer.getContext?.(), dbg0 = gl0?.getExtension?.("WEBGL_debug_renderer_info");
+  const isSoftGL = /SwiftShader|llvmpipe|softpipe/i.test(String((dbg0 ? gl0.getParameter(dbg0.UNMASKED_RENDERER_WEBGL) : gl0?.getParameter?.(gl0.RENDERER)) || ""));
   /* the page's CSS zoom on <html> (112 % on large screens) stretches the canvas: render that many more pixels so the 3D view
      stays sharp; the per-device cap (1.0 phones, 1.5 desktop) still bounds the cost */
   const cssZoom = () => parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
-  const calcPR = () => Math.min(devicePixelRatio || 1, lowTier ? 0.75 : mobile ? 1.0 : 1.5) * cssZoom();
-  let PR = calcPR(), exactPR = PR, accMax = 8;
+  const calcPR = () => Math.min(devicePixelRatio || 1, isSoftGL || lowTier ? 0.75 : mobile ? 1.0 : 1.5) * (isSoftGL ? 1 : cssZoom());
+  let PR = calcPR(), exactPR = PR, accMax = isSoftGL ? 1 : 8;
   const movGov = createMovingGovernor({start: lowTier ? 0 : mobile ? 2 : 3, max: lowTier ? 1 : MOVING_LADDER.length - 1});
   let movingPR = Math.min(PR * movGov.rung.scale, exactPR), movingSpv = movGov.rung.spv, movingShade = movGov.rung.shade;
   const EXACT_MS = 100;
@@ -928,8 +931,9 @@ vec3 starAt(vec3 p, int l) {`)
     return tf[m][k] ||= {W, lo: v.signed ? -W : 0, hi: W, opacity: m === "volume" ? VOL.opacity : 0.5, cmap: v.signed ? VEL_NAMES.signed[0] : VEL_NAMES.unsigned[0]}; }
   /* σ_los is a property of the whole ray (its moment 2), so it has no volume rendering: integral only */
   const modeOk = (k, m) => !(k === "sigmalos" && m === "volume");
+  const winDef = H0 > 400 ? WIN_CLUSTER : WIN_DEFAULT;
   function fieldTf(k, m = mode) { if (isVel(k)) return velTf(k, m);
-    const f = fld(k), d = m === "integral" ? WIN_DEFAULT[k] || {} : {},
+    const f = fld(k), d = m === "integral" ? winDef[k] || {} : {},
       w = m === "integral" ? [d.lo ?? f.proj.vmin, d.hi ?? f.proj.vmax] : f.vol_window;
     const cm = CMAP_DEFAULT[k] || f.cmap;
     return tf[m][k] ||= {lo: w[0], hi: w[1], opacity: m === "volume" ? VOL.opacity : 0.5, cmap: CMAPS.includes(cm) ? cm : "tng_dusk"}; }
@@ -1172,7 +1176,7 @@ vec3 starAt(vec3 p, int l) {`)
      cubes download at once (the first-frame keys always start at once, with network priority 0), each finished cube is bound
      and drawn, and keys a newer plan no longer names are not started. ensure() resolves when the wanted field's first level
      (L0, plus its nH weights for T / Z) is bound. */
-  const LOAD_PAR = mobile || deviceMemory < 4 ? 1 : 3;
+  const LOAD_PAR = isSoftGL || mobile || deviceMemory < 4 ? 1 : 3;
   let plan = [], planFirst = new Set(), active = 0;
   const failed = new Map(), waiters = new Map(), tries = new Map();
   function settle(key, err) { const ws = waiters.get(key); if (!ws) return; waiters.delete(key); for (const [res, rej] of ws) err ? rej(err) : res(); }
@@ -1341,7 +1345,7 @@ vec3 starAt(vec3 p, int l) {`)
        volume window in volume mode; the soft floor fades like the weight field's own map */
     const v = velView(species); U.uVq.value = v ? v.q : 0;
     if (v) { const f = fld(boundW); U.uKind.value = 0; U.uFadeDex.value = fadeDex(boundW); U.uVolGain.value = 1;   // gain 1: the velocity LUT is already light; 1.8 clipped its hues toward white
-      if (mode === "volume") U.uWWin.value.set(...f.vol_window); else { const lo = WIN_DEFAULT[boundW]?.lo ?? f.proj.vmin; U.uWWin.value.set(lo, Math.max(lo + 1, WIN_DEFAULT[boundW]?.hi ?? f.proj.vmax)); } }
+      if (mode === "volume") U.uWWin.value.set(...f.vol_window); else { const lo = winDef[boundW]?.lo ?? f.proj.vmin; U.uWWin.value.set(lo, Math.max(lo + 1, winDef[boundW]?.hi ?? f.proj.vmax)); } }
     if (s.cmap !== lastCmap) { RM.lutTex.image.data.set(lut(s.cmap)); RM.lutTex.needsUpdate = true; lastCmap = s.cmap; }
     applyTfMode(); legend(); aria(); render(); }
   /* ---- tf3d: transfer-function volume mode ----
@@ -1535,7 +1539,7 @@ vec3 starAt(vec3 p, int l) {`)
     if (!acc) accK = 0;
     /* tune3: half-voxel steps for exact frames in close views (L2), so the finest grid shows no step banding; moving frames
        scale resolution, ray steps, and 2D gradient fetches adaptively with the FPS governor and freeze uFrame so dither noise never boils */
-    U.uSpv.value = th ? THUMB.spv : exact ? (hVis() / boxScale < 30 ? 2.0 : 1.0) : movingSpv; U.uStarFloor.value = STAR_COMP.floor; U.uCompMode.value = STAR_COMP.mode; U.uOccRange.value.set(...[0, 1].map(i => STAR_CLOSE.occ[i] + (STAR_ZOOM.occWide[i] - STAR_CLOSE.occ[i]) * zoomW())); U.uGasW.value = STAR_CLOSE.gasW + (1 - STAR_CLOSE.gasW) * zoomW(); U.uExact.value = exact || useMovingExact ? 1 : 0;
+    U.uSpv.value = th ? THUMB.spv : isSoftGL ? 0.35 : exact ? (hVis() / boxScale < 30 ? 2.0 : 1.0) : movingSpv; U.uStarFloor.value = STAR_COMP.floor; U.uCompMode.value = STAR_COMP.mode; U.uOccRange.value.set(...[0, 1].map(i => STAR_CLOSE.occ[i] + (STAR_ZOOM.occWide[i] - STAR_CLOSE.occ[i]) * zoomW())); U.uGasW.value = STAR_CLOSE.gasW + (1 - STAR_CLOSE.gasW) * zoomW(); U.uExact.value = !isSoftGL && (exact || useMovingExact) ? 1 : 0;
     if (U.uDust) U.uDust.value = layer.dust ? 1.0 : 0.0;
     const trimGrad = !exact && !th && !benching && movingShade < 1 && U.uTFOn.value === 1;
     if (trimGrad) { keepTF2D = U.uTF2D.value; keepShade = U.uShade.value; if (movingShade <= 0) U.uTF2D.value = 0; U.uShade.value = keepShade * movingShade; }
@@ -1611,7 +1615,7 @@ vec3 starAt(vec3 p, int l) {`)
       accMax = te * (exactPR / pr0) ** 2 > 1.5 * EXACT_MS ? 3 : ACC_N;
       Object.assign(stats.calibration = {moving_exact_ms: t, moving_path: t <= 1000 / 30 ? "exact" : "fast"}, {exact_ms: te, exact_pr: exactPR, refine_frames: accMax});
     } else {
-      exactPR = PR; accMax = ACC_N; stats.calibration = {moving_exact_ms: t, moving_path: t <= 1000 / 30 ? "exact" : "fast"};
+      exactPR = PR; accMax = isSoftGL ? 1 : ACC_N; stats.calibration = {moving_exact_ms: t, moving_path: t <= 1000 / 30 ? "exact" : "fast"};
     }
     movGov.reset(pickMovingRung(t, {lowTier, fs: isFs()})); syncMovingRung();
     Object.assign(stats.calibration, {moving_pr: movingPR, moving_spv: movingSpv, moving_rung: movGov.rung.name, governor: movGov.state()});
@@ -1622,6 +1626,11 @@ vec3 starAt(vec3 p, int l) {`)
     if (calPoll) { cancelAnimationFrame(calPoll); calPoll = 0; }
     const gl = renderer.getContext?.(), tq = gl?.getExtension?.("EXT_disjoint_timer_query_webgl2");
     const bufPx = (stage.clientWidth || 600) * (stage.clientHeight || 400) * PR * PR, pr0 = exactPR;
+    const dbg = gl?.getExtension?.("WEBGL_debug_renderer_info"), rendStr = (dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl?.getParameter?.(gl.RENDERER)) || "";
+    if (/SwiftShader|llvmpipe|softpipe/i.test(String(rendStr))) {
+      applyCalibration(200, 400, pr0, bufPx);
+      return;
+    }
     const p0 = camera.position.clone();
     if (tq && gl.createQuery) {
       benching = true; movingPR = PR * 0.5; movingSpv = 0.5; movingShade = 1;
@@ -1855,7 +1864,7 @@ vec3 starAt(vec3 p, int l) {`)
   document.addEventListener("fullscreenchange", fsChanged); document.addEventListener("webkitfullscreenchange", fsChanged);
   q("#v3-fs").addEventListener("click", () => toggleFullscreen());
   q("#v3-fs-stage").addEventListener("click", () => toggleFullscreen());
-  q("#v3-head").addEventListener("click", () => import("./headctl.js?v=20261123e").then(H => H.toggle(viewer, q("#v3-head"))));   /* head, hand and tilt control, loaded on first use */
+  q("#v3-head").addEventListener("click", () => import("./headctl.js?v=20261123f").then(H => H.toggle(viewer, q("#v3-head"))));   /* head, hand and tilt control, loaded on first use */
   q("#v3-fs-exit").addEventListener("click", () => toggleFullscreen(false));
   q("#v3-ctl-toggle").addEventListener("click", () => setPanel(ctlBox.hidden));
 
@@ -2057,7 +2066,7 @@ vec3 starAt(vec3 p, int l) {`)
       ...extra
     };
   }
-  const loadExport = () => import("./export3d.js?v=20261123e");
+  const loadExport = () => import("./export3d.js?v=20261123f");
   const exportPNG = async (o = {}) => (await loadExport()).exportPNG(viewer, readExportOpts(o));
   const exportSVG = async (o = {}) => (await loadExport()).exportSVG(viewer, readExportOpts(o));
   const exportPDF = async (o = {}) => (await loadExport()).exportPDF(viewer, readExportOpts(o));

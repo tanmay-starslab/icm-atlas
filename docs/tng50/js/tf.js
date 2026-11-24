@@ -112,9 +112,16 @@ export function buildTF(state, lut = null, win = state.win) {
    clouds the ramp restricted to the upper ¾ of the gradient range, with shading: edges of clouds and filaments */
 export function preset(name, ctx) {
   const vw = ctx.volWin || [ctx.vmin, ctx.vmax], win = [ctx.vmin, ctx.vmax], base = {twoD: false, shade: 0, emis: "", gamma: 1, win, gmax: GMAX_DEFAULT, bands: [], ramp: null};
-  if (name === "thor") return {...base, preset: "thor", field: THOR.field, win: THOR.win.slice(), emis: THOR.emis, gamma: THOR.gamma, bands: THOR.bands.map(b => ({...b, rgb: b.rgb.slice()}))};
-  if (name === "nelson16") return {...base, preset: "nelson16", field: NELSON16.field, win: NELSON16.win.slice(), emis: NELSON16.emis, gamma: NELSON16.gamma,
-    bands: NELSON16.bands.map(({c, w, a, rgb}) => ({c, w, a, rgb: rgb.slice()}))};
+  const hiT = ctx && Number.isFinite(ctx.vmin) && ctx.vmin > 5.5;
+  if (name === "thor") return hiT
+    ? {...base, preset: "thor", field: THOR.field, win: [ctx.vmin, ctx.vmax], emis: THOR.emis, gamma: THOR.gamma,
+       bands: [{c: 7.05, w: 0.18, a: 0.75, rgb: [70, 140, 255]}, {c: 7.52, w: 0.12, a: 0.40, rgb: [255, 160, 40]}, {c: 7.85, w: 0.10, a: 0.35, rgb: [235, 45, 35]}]}
+    : {...base, preset: "thor", field: THOR.field, win: THOR.win.slice(), emis: THOR.emis, gamma: THOR.gamma, bands: THOR.bands.map(b => ({...b, rgb: b.rgb.slice()}))};
+  if (name === "nelson16") return hiT
+    ? {...base, preset: "nelson16", field: NELSON16.field, win: [ctx.vmin, ctx.vmax], emis: NELSON16.emis, gamma: NELSON16.gamma,
+       bands: [{c: 6.85, w: 0.07, a: 0.30, rgb: [35, 65, 175]}, {c: 7.25, w: 0.07, a: 0.45, rgb: [100, 185, 255]}, {c: 7.58, w: 0.06, a: 0.55, rgb: [255, 215, 50]}, {c: 7.88, w: 0.06, a: 0.75, rgb: [225, 45, 35]}]}
+    : {...base, preset: "nelson16", field: NELSON16.field, win: NELSON16.win.slice(), emis: NELSON16.emis, gamma: NELSON16.gamma,
+       bands: NELSON16.bands.map(({c, w, a, rgb}) => ({c, w, a, rgb: rgb.slice()}))};
   if (name === "iso") { const s = vw[1] - vw[0];
     return {...base, preset: "iso", shade: 0.6, bands: [0.25, 0.5, 0.75].map((f, i) => ({c: vw[0] + f * s, w: 0.025 * s, a: [0.5, 0.7, 0.9][i], rgb: null}))}; }
   if (name === "clouds") return {...base, preset: "clouds", twoD: true, shade: 0.6, ramp: {lo: vw[0], hi: vw[1], a: 1, g: [0.25, 1]}};
