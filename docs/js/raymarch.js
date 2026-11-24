@@ -8,7 +8,7 @@ uniform sampler3D uGas0, uGas1, uGas2, uW0, uW1, uW2, uStar0, uStar1, uStar2;
 uniform vec3 uHalf; uniform float uN;
 uniform vec3 uGasHave, uWHave, uStarHave;
 uniform vec2 uGasRange, uWRange, uStarRange0, uStarRange1, uStarRange2;
-uniform float uMask0;
+uniform float uMask0, uRedshift;
 uniform vec3 uCamDisk; uniform int uMode, uKind;
 uniform vec2 uWin; uniform sampler2D uLut; uniform float uOpacity, uSpv; uniform int uExact, uFrame;
 uniform float uGasMix, uStarMix, uStarQ, uStarS0; uniform vec3 uStarBal, uBg;
@@ -18,7 +18,7 @@ uniform float uVolK, uVolGain, uStarFloor, uGasW; uniform vec2 uOccRange; unifor
 uniform sampler3D uVel0, uVel1, uVel2; uniform vec3 uVelHave; uniform float uVelV; uniform int uVq; uniform vec2 uWWin;
 uniform sampler2D uTF; uniform int uTFOn, uTF2D, uTFW; uniform vec2 uTFWin; uniform float uShade, uGradMax, uGamma, uWRef;
 in vec3 vPos; out vec4 fragColor;
-const float LOG2_10 = 3.321928094887362, LOG10_CM_PER_KPC = 21.489350545189;
+const float LOG2_10 = 3.321928094887362, LOG10_CM_PER_KPC = 21.4893505383, EPS_REF = -25.0, LOG10_4PI_ARCSEC2 = 11.7280614585;
 
 float dec(float q, vec2 r) { return q < 0.5 ? 0.0 : exp2(LOG2_10 * (r.x + (q - 1.0) * (r.y - r.x) / 254.0)); }
 vec3 dec3(vec3 q, vec2 r) { return vec3(dec(q.r, r), dec(q.g, r), dec(q.b, r)); }
@@ -42,9 +42,9 @@ vec3 fast3(sampler3D s, vec3 p, float h, vec2 r) { return dec3(texture(s, p / (2
 
 float gasAt(vec3 p, int l) {
   if (l == 0 && length(p) > uMask0) return 0.0;
-  float h = hl(l);
-  if (uExact == 1) return l == 0 ? exact1(uGas0, p, h, uGasRange) : l == 1 ? exact1(uGas1, p, h, uGasRange) : exact1(uGas2, p, h, uGasRange);
-  return l == 0 ? fast1(uGas0, p, h, uGasRange) : l == 1 ? fast1(uGas1, p, h, uGasRange) : fast1(uGas2, p, h, uGasRange); }
+  float h = hl(l); vec2 r = (uMode == 2 && uVq == 0) ? (uGasRange - vec2(EPS_REF)) : uGasRange;
+  if (uExact == 1) return l == 0 ? exact1(uGas0, p, h, r) : l == 1 ? exact1(uGas1, p, h, r) : exact1(uGas2, p, h, r);
+  return l == 0 ? fast1(uGas0, p, h, r) : l == 1 ? fast1(uGas1, p, h, r) : fast1(uGas2, p, h, r); }
 float wAt(vec3 p, int l) {
   if (l == 0 && length(p) > uMask0) return 0.0;
   float h = hl(l);
@@ -171,7 +171,7 @@ void main() {
   for (int s = 0; s < 5; s++) {
     float ta = bp[s], tl = bp[s + 1] - ta; if (tl <= 1e-5) continue;
     vec3 pm = o + d * (ta + 0.5 * tl);
-    int lg = gasOn ? pick(gHave, pm, 3) : -1, lw = (weighted || tfW || emisMode) ? pick(uWHave, pm, 3) : -1, ls = starOn ? pick(uStarHave, pm, 3) : -1;
+    int lg = gasOn ? pick(gHave, pm, 3) : -1, lw = (weighted || tfW) ? pick(uWHave, pm, 3) : -1, ls = starOn ? pick(uStarHave, pm, 3) : -1;
     float fp = uPxAng * max(length(pm - o), 1.0), mg = 1.0, mw = 1.0, ms = 1.0; int cg = -1, cw = -1, cs = -1;
     lg = lodLevel(gHave, pm, lg, fp, uLodC.x, cg, mg); lw = lodLevel(uWHave, pm, lw, fp, uLodC.x, cw, mw);
     ls = lodLevel(uStarHave, pm, ls, fp, uLodC.y, cs, ms);
@@ -200,14 +200,7 @@ void main() {
           if (weighted) { float w = lw >= 0 ? wVal(p, lw) : 0.0; if (lw >= 0 && cw >= 0) w = mix(wVal(p, cw), w, mw); num += w * v * hw; den += w * hw; }
           else sumG += v * hw;
         } else if (uMode == 2) {
-          if (uKind == 4) sumG += v * hw;
-          else {
-            float w = lw >= 0 ? wVal(p, lw) : 0.0; if (lw >= 0 && cw >= 0) w = mix(wVal(p, cw), w, mw);
-            if (uKind == 1) { float ww = w * w * hw; num += ww * v; den += ww; }
-            else if (uKind == 2) sumG += w * w * sqrt(max(v, 0.0)) * hw;
-            else if (uKind == 3) sumG += v * v * sqrt(max(w, 0.0)) * hw;
-            else sumG += w * v * hw;
-          }
+          sumG += v * hw;
         } else if (tfMode) {
           /* THOR: C = ∫ c μ exp(−∫ μ) ds, front to back. Per step μ = kappa alpha_TF (kappa = uVolK opacity² per kpc,
              as the ramp's kappa x²), opacity a = 1 − exp(−μ h) (= μ h for thin steps), emission (1 − A) a c W with W the
@@ -248,8 +241,9 @@ void main() {
       float lc = colW > 0.0 ? log2(colW) / LOG2_10 + LOG10_CM_PER_KPC : -1e30;
       gas = mix(uBg, lutc((qv - uWin.x) / span), smoothstep(uWWin.x - max(uFadeDex, 1e-3), uWWin.x, lc));
     } else {
-      bool useMean = weighted || (emisMode && uKind == 1);
-      float lv = useMean ? (den > 0.0 && num > 0.0 ? log2(num / den) / LOG2_10 : -1e30) : (sumG > 0.0 ? log2(sumG) / LOG2_10 + LOG10_CM_PER_KPC : -1e30);
+      float lv = emisMode ? (sumG > 0.0 ? EPS_REF + log2(sumG) / LOG2_10 + LOG10_CM_PER_KPC - LOG10_4PI_ARCSEC2 - 4.0 * log2(1.0 + max(uRedshift, 0.0)) / LOG2_10 : -1e30)
+        : weighted ? (den > 0.0 && num > 0.0 ? log2(num / den) / LOG2_10 : -1e30)
+        : (sumG > 0.0 ? log2(sumG) / LOG2_10 + LOG10_CM_PER_KPC : -1e30);
       float x = (lv - uWin.x) / span;
       /* tune1: columns below the window fade from LUT(0) into the background over uFadeDex dex (soft floor), so
          empty / masked regions (Σ = 0) leave no silhouette and sparse regions have no hard staircase edge */
@@ -301,7 +295,7 @@ export function makeMaterial(T, opts = {}) {
     uHalf: u(V3(400, 100, 25)), uN: u(opts.n || 256),
     uGasHave: u(V3(0, 0, 0)), uWHave: u(V3(0, 0, 0)), uStarHave: u(V3(0, 0, 0)),
     uGasRange: u(V2(0, 1)), uWRange: u(V2(0, 1)), uStarRange0: u(V2(0, 1)), uStarRange1: u(V2(0, 1)), uStarRange2: u(V2(0, 1)),
-    uMask0: u(400), uCamDisk: u(V3(0, 0, 1000)), uMode: u(0), uKind: u(0), uWin: u(V2(0, 1)), uLut: u(lutTex),
+    uMask0: u(400), uRedshift: u(0.0), uCamDisk: u(V3(0, 0, 1000)), uMode: u(0), uKind: u(0), uWin: u(V2(0, 1)), uLut: u(lutTex),
     uOpacity: u(0.5), uSpv: u(1.0), uExact: u(1), uFrame: u(0),
     uGasMix: u(1.0), uStarMix: u(0.0), uStarQ: u(8.0), uStarS0: u(10 ** (0.4 * (36.57212566588 - 21.5))), uStarBal: u(V3(1, 1, 1)),
     uBg: u(V3(5 / 255, 7 / 255, 11 / 255)),

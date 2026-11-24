@@ -105,9 +105,10 @@ const M = JSON.parse(readFileSync(join(ROOT, "docs/tng50/data/viz/manifest_v2.js
         patched.includes("/* dust patched */") && patched.includes("uGasW * dustT"),
     "viewer3d.js shader patch anchors match raymarch.js FRAG cleanly without modifying raymarch.js");
   check(vsrc.includes('value="emission"') && vsrc.includes('data-testid="v3-mode-emission"') &&
-        vsrc.includes("derivedList(manifest)") && vsrc.includes("computeDerivedCube(") &&
-        FRAG.includes("else if (uMode == 2)") && FRAG.includes("uKind == 2") && FRAG.includes("uKind == 3"),
-    "viewer3d.js & raymarch.js wire 3D Emission mode (uMode == 2) and zero-storage TEMET derived fields"); }
+        vsrc.includes('data-testid="v3-emis-line"') && vsrc.includes("cloudy_emissivity.js") &&
+        vsrc.includes("CLOUDY c17.03") && vsrc.includes("derivedList(manifest)") && vsrc.includes("computeDerivedCube(") &&
+        FRAG.includes("else if (uMode == 2)") && FRAG.includes("EPS_REF") && FRAG.includes("LOG10_4PI_ARCSEC2") && FRAG.includes("uRedshift"),
+    "viewer3d.js & raymarch.js wire CLOUDY c17.03 3D Emission mode (uMode == 2) and zero-storage TEMET derived fields"); }
 
 /* ---- 5. Zero-storage TEMET cluster thermodynamic fields (Pth, K, EM, tcool, Mach) ---- */
 { check(DERIVED_KEYS.join(",") === "Pth,K,EM,tcool,Mach", "DERIVED_KEYS lists all 5 TEMET cluster fields");
@@ -146,6 +147,34 @@ const M = JSON.parse(readFileSync(join(ROOT, "docs/tng50/data/viz/manifest_v2.js
   check(Number.isNaN(ma[0]) && Math.abs(10 ** ma[1] - 500 / (0.15267 * Math.sqrt(10 ** 7.2))) < 0.15 &&
         10 ** ma[2] > 1.2,
     `Mach cool core = ${(10 ** ma[1]).toFixed(2)}, supersonic shock = ${(10 ** ma[2]).toFixed(2)}`); }
+
+/* ---- 6. CLOUDY c17.03 line emissivity LUT & exact surface brightness ---- */
+{ const cloudy = await import("../../docs/tng50/js/cloudy_emissivity.js");
+  const meta = JSON.parse(readFileSync(join(ROOT, "docs/tng50/data/cloudy_emissivity_meta.json"), "utf8"));
+  const data = new Uint8Array(readFileSync(join(ROOT, "docs/tng50/data/cloudy_emissivity_z0.bin")));
+  const lut = {meta, data, lines: cloudy.CLOUDY_LINES};
+  check(cloudy.CLOUDY_LINES.length === 12 && cloudy.DEFAULT_LINE === "OVIII_18.97" && data.length === 12 * 56 * 6 * 61,
+    "CLOUDY c17.03 LUT has 12 lines (default OVIII_18.97) and exact 12x56x6x61 uint8 payload");
+  const eO8 = cloudy.interpLogEps(lut, "OVIII_18.97", -2.0, -0.5, 6.5);
+  const eFe = cloudy.interpLogEps(lut, "FeXXV_1.85", -2.0, -0.5, 7.8);
+  const eHa = cloudy.interpLogEps(lut, "Ha_6563", -1.0, 0.0, 4.0);
+  check(eO8 > -32 && eO8 < -25 && eFe > -33 && eFe < -25 && eHa > -32 && eHa < -20,
+    `CLOUDY trilinear log10(eps): OVIII=${eO8.toFixed(2)}, FeXXV=${eFe.toFixed(2)}, Ha=${eHa.toFixed(2)}`);
+  const encLog = (val, lo, hi) => 1 + Math.round((val - lo) / (hi - lo) * 254);
+  const rN = [-6, 2], rT = [3, 9], rZ = [-4, 1];
+  const cube = cloudy.computeEmissivityCube(lut, "OVIII_18.97", {
+    nH: new Uint8Array([0, encLog(-2.0, ...rN)]),
+    T:  new Uint8Array([0, encLog(6.5, ...rT)]),
+    Z:  new Uint8Array([0, encLog(-0.5, ...rZ)]),
+  }, {nH: rN, T: rT, Z: rZ});
+  const decEps = decodeU8(cube, cloudy.EPS_MIN, cloudy.EPS_MAX);
+  check(Number.isNaN(decEps[0]) && Math.abs(decEps[1] - eO8) < 0.25,
+    `computeEmissivityCube matches interpLogEps (${decEps[1].toFixed(2)} vs ${eO8.toFixed(2)})`);
+  const sb0 = cloudy.log10SBFromIntegral(10 ** (eO8 - cloudy.EPS_REF) * 1000.0, 0.0);
+  const sb1 = cloudy.log10SBFromIntegral(10 ** (eO8 - cloudy.EPS_REF) * 1000.0, 1.0);
+  check(Math.abs(sb0 - (eO8 + 3.0 + cloudy.LOG10_CM_PER_KPC - cloudy.LOG10_4PI_ARCSEC2)) < 1e-6 &&
+        Math.abs((sb0 - sb1) - 4 * Math.log10(2)) < 1e-6,
+    `log10SBFromIntegral exact physical units (z=0: ${sb0.toFixed(2)}, z=1 dimming: ${(sb0 - sb1).toFixed(3)} dex)`); }
 
 console.log(fails ? `\n${fails} check(s) FAILED` : "\nall checks passed");
 process.exit(fails ? 1 : 0);
